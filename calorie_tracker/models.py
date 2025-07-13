@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from datetime import date
+from django.contrib import admin
 
 class Meal(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -26,6 +28,33 @@ class Activity(models.Model):
     def __str__(self):
         return f"{self.activity} - {self.calories_burned} kcal burned"
 
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    weight = models.FloatField(null=True, blank=True)
+    height = models.FloatField(null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)  # <-- NOWE pole
 
+    def __str__(self):
+        return f"Profil użytkownika: {self.user.username}"
 
+    def calculate_bmi(self):
+        if self.weight and self.height:
+            height_in_m = self.height / 100
+            return round(self.weight / (height_in_m ** 2), 2)
+        return None
 
+    @property
+    def age(self):
+        if self.date_of_birth:
+            today = date.today()
+            return today.year - self.date_of_birth.year - (
+                (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
+            )
+        return None
+
+    def __str__(self):
+        return f"Profil {self.user.username}"
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'weight', 'height', 'date_of_birth', 'age']

@@ -1,10 +1,50 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+<form id="activityForm">
+  <label for="username">Nazwa użytkownika:</label>
+  <input id="username" name="username" required>
+
+  <label for="activity">Aktywność:</label>
+  <input id="activity" name="activity" required>
+
+  <label for="calories">Spalone kalorie:</label>
+  <input id="calories" name="calories_burned" type="number" step="0.1" required>
+
+  <button type="submit">Dodaj aktywność</button>
+</form>
+
+<div id="result"></div>
+
+<script>
+document.getElementById("activityForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+
+  const token = localStorage.getItem("authToken"); // pobranie tokena
+
+  if (!token) {
+    document.getElementById("result").innerText = "Brak tokena autoryzacyjnego. Zaloguj się ponownie.";
+    return;
+  }
+
+  const username = document.getElementById("username").value;
+  const activity = document.getElementById("activity").value;
+  const calories = parseFloat(document.getElementById("calories").value);
+
+  fetch("http://127.0.0.1:8000/api/add-activity/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Token " + token
+    },
+    body: JSON.stringify({ username, activity, calories_burned: calories })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("Błąd: " + res.status);
+    return res.json();
+  })
+  .then(data => {
+    document.getElementById("result").innerText = "✅ Aktywność dodana: " + JSON.stringify(data);
+  })
+  .catch(err => {
+    document.getElementById("result").innerText = "❌ Błąd: " + err;
+  });
+});
+</script>

@@ -2,63 +2,82 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Dodaj Posiłek</title>
+  <title>Dodaj posiłek (dynamicznie)</title>
+  <style>
+    label, input, button {
+      display: block;
+      margin: 10px 0;
+    }
+  </style>
 </head>
 <body>
-  <h1>Dodaj posiłek</h1>
+  <h2>Dodaj posiłek z Nutritionix</h2>
 
-  <form id="mealForm">
-    <label for="food">Wybierz posiłek:</label>
-    <select id="food" name="food">
-      <option value="bread">Chleb</option>
-      <option value="apple">Jabłko</option>
-      <option value="rice">Ryż</option>
-      <option value="egg">Jajko</option>
-    </select>
-    <br><br>
+  <form id="searchForm">
+    <label for="usernameInput">Podaj nazwę użytkownika:</label>
+    <input type="text" id="usernameInput" name="username" required placeholder="np. janek123">
 
-    <button type="submit">Dodaj</button>
+    <label for="mealInput">Wpisz nazwę posiłku:</label>
+    <input type="text" id="mealInput" name="meal" required placeholder="np. apple, rice...">
+
+    <button type="submit">Szukaj</button>
   </form>
 
-  <p id="response"></p>
+  <div id="result"></div>
 
   <script>
-    const token = "TWÓJ_ACCESS_TOKEN_TUTAJ";  // ← Uzupełnij token JWT
-
-    document.getElementById("mealForm").addEventListener("submit", function(e) {
+    document.getElementById("searchForm").addEventListener("submit", function(e) {
       e.preventDefault();
 
-      const foodName = document.getElementById("food").value;
+      const mealName = document.getElementById("mealInput").value;
+      const username = document.getElementById("usernameInput").value;
 
-      // Na tym etapie możemy dodać zapytanie do Nutritionix (lub przykładowe dane)
-      const mealData = {
-        foods: [
-          {
-            food_name: foodName,
-            nf_calories: 100,
-            nf_protein: 5,
-            nf_total_carbohydrate: 20,
-            nf_total_fat: 2,
-            serving_qty: 1,
-            serving_unit: "sztuka"
-          }
-        ]
-      };
-
-      fetch("http://127.0.0.1:8000/api/add-meal/", {
+      fetch("http://127.0.0.1:8000/api/nutritionix-meal/", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + token
+          "Content-Type": "application/json"
         },
-        body: JSON.stringify(mealData)
+        body: JSON.stringify({ meal: mealName })
       })
       .then(response => response.json())
       .then(data => {
-        document.getElementById("response").textContent = "Dodano posiłek: " + foodName;
+        const food = data.foods?.[0];
+        if (!food) {
+          document.getElementById("result").innerHTML = "<p>Nie znaleziono danych.</p>";
+          return;
+        }
+
+        const html = `
+          <h3>Znaleziono: ${food.food_name}</h3>
+          <p><strong>Kalorie:</strong> ${food.nf_calories}</p>
+          <p><strong>Białko:</strong> ${food.nf_protein} g</p>
+          <p><strong>Węglowodany:</strong> ${food.nf_total_carbohydrate} g</p>
+          <p><strong>Tłuszcz:</strong> ${food.nf_total_fat} g</p>
+          <p><strong>Porcja:</strong> ${food.serving_qty} ${food.serving_unit}</p>
+          <button id="addMealBtn">Dodaj ten posiłek</button>
+        `;
+        document.getElementById("result").innerHTML = html;
+
+        document.getElementById("addMealBtn").addEventListener("click", () => {
+          fetch("http://127.0.0.1:8000/api/add-meal/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ foods: [food], username: username })
+          })
+          .then(res => res.json())
+          .then(response => {
+            document.getElementById("result").innerHTML += "<p style='color:green;'>Posiłek dodany!</p>";
+          })
+          .catch(err => {
+            document.getElementById("result").innerHTML += "<p style='color:red;'>Błąd dodawania.</p>";
+          });
+        });
       })
       .catch(error => {
-        document.getElementById("response").textContent = "Błąd: " + error;
+        console.error("Błąd:", error);
+        document.getElementById("result").innerHTML = "<p style='color:red;'>Błąd pobierania danych.</p>";
       });
     });
   </script>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8" />
+    <title>Edytuj profil</title>
+</head>
+<body>
+    <h1>Edytuj profil</h1>
+
+    <form id="editProfileForm">
+        <label>Waga (kg): <input type="number" step="0.1" name="weight" id="weightInput"></label><br>
+        <label>Wzrost (cm): <input type="number" step="0.1" name="height" id="heightInput"></label><br>
+        <label>Data urodzenia: <input type="date" name="date_of_birth" id="dobInput"></label><br>
+        <button type="submit">Zapisz</button>
+    </form>
+
+    <button id="cancel-btn">Anuluj</button>
+    <button id="logout-btn">Wyloguj się</button>
+
+    <script>
+        const token = localStorage.getItem('authToken');
+
+        if (!token) {
+            window.location.href = '/login/';
+        } else {
+            // Załaduj dane profilu do formularza
+            fetch('/api/profile/', {
+                headers: {
+                    'Authorization': 'Token ' + token,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('Brak dostępu');
+                return res.json();
+            })
+            .then(data => {
+                document.getElementById('weightInput').value = data.weight || '';
+                document.getElementById('heightInput').value = data.height || '';
+                document.getElementById('dobInput').value = data.date_of_birth || '';
+            })
+            .catch(err => {
+                console.error(err);
+                localStorage.removeItem('authToken');
+                window.location.href = '/login/';
+            });
+
+            // Obsługa zapisu formularza
+            document.getElementById('editProfileForm').addEventListener('submit', e => {
+                e.preventDefault();
+
+                const payload = {
+                    weight: parseFloat(document.getElementById('weightInput').value),
+                    height: parseFloat(document.getElementById('heightInput').value),
+                    date_of_birth: document.getElementById('dobInput').value,
+                };
+
+                fetch('/api/profile/', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Token ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => {
+                    if (res.ok) {
+                        alert('Profil został zapisany');
+                        window.location.href = '/profile/';
+                    } else {
+                        alert('Błąd podczas zapisu');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Błąd sieci');
+                });
+            });
+
+            document.getElementById('cancel-btn').addEventListener('click', () => {
+                window.location.href = '/profile/';
+            });
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login/';
+            });
+        }
+    </script>
+</body>
+</html>

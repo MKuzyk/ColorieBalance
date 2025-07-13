@@ -5,7 +5,14 @@ meta {
 }
 
 post {
-  url: http://127.0.0.1:8000/api/token/
-  body: none
+  url: http://127.0.0.1:8000/api-token-auth/
+  body: json
   auth: inherit
+}
+
+body:json {
+  {
+    "username": "testuser",
+    "password": "supersecurepassword"
+  }
 }
