@@ -1,0 +1,23 @@
+<h2>Podsumowanie dnia</h2>
+
+<p>Kalorie zjedzone: {{ total_eaten }}</p>
+<p>Kalorie spalone: {{ total_burned }}</p>
+<p>Bilans: {{ balance }}</p>
+
+<h3>Posiłki</h3>
+<ul>
+  {% for meal in meals %}
+    <li>{{ meal.meal }} - {{ meal.calories }} kcal</li>
+  {% empty %}
+    <li>Brak posiłków</li>
+  {% endfor %}
+</ul>
+
+<h3>Aktywności</h3>
+<ul>
+  {% for activity in activities %}
+    <li>{{ activity.activity }} - {{ activity.calories_burned }} kcal</li>
+  {% empty %}
+    <li>Brak aktywności</li>
+  {% endfor %}
+</ul>

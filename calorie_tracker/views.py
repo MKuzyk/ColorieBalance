@@ -171,3 +171,25 @@ def add_meal_dynamic(request):
 @login_required
 def dashboard_view(request):
     return render(request, 'dashboard.html')
+
+
+@login_required
+def daily_summary_view(request):
+    today = date.today()
+    user = request.user
+
+    meals = Meal.objects.filter(user=user, date=today)
+    activities = Activity.objects.filter(user=user, date=today)
+
+    total_eaten = sum(meal.calories for meal in meals)
+    total_burned = sum(activity.calories_burned for activity in activities)
+    balance = total_eaten - total_burned
+
+    context = {
+        "total_eaten": total_eaten,
+        "total_burned": total_burned,
+        "balance": balance,
+        "meals": meals,
+        "activities": activities,
+    }
+    return render(request, "daily_summary.html", context)
