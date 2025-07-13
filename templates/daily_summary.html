@@ -1,23 +1,84 @@
-<h2>Podsumowanie dnia</h2>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8" />
+    <title>Podsumowanie Dnia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 600px;
+        }
+        h1 {
+            color: #333;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        .status {
+            font-weight: bold;
+            color: #007BFF;
+        }
+    </style>
+</head>
+<body>
+    <h1>Podsumowanie dnia</h1>
 
-<p>Kalorie zjedzone: {{ total_eaten }}</p>
-<p>Kalorie spalone: {{ total_burned }}</p>
-<p>Bilans: {{ balance }}</p>
+    <div class="section">
+        <p><strong>Kalorie zjedzone:</strong> {{ total_eaten }}</p>
+        <p><strong>Kalorie spalone:</strong> {{ total_burned }}</p>
+        <p><strong>Bilans:</strong> {{ balance }}</p>
+        <p><strong>Status kaloryczny:</strong> <span class="status">{{ calorie_status }}</span></p>
+    </div>
 
-<h3>Posiłki</h3>
-<ul>
-  {% for meal in meals %}
-    <li>{{ meal.meal }} - {{ meal.calories }} kcal</li>
-  {% empty %}
-    <li>Brak posiłków</li>
-  {% endfor %}
-</ul>
+    <div class="section">
+        <p><strong>BMI:</strong>
+            {% if bmi %}
+                {{ bmi }} ({{ bmi_status }})
+            {% else %}
+                Brak danych do obliczenia BMI
+            {% endif %}
+        </p>
+        <p><strong>Podstawowa Przemiana Materii (PPM):</strong>
+            {% if ppm %}
+                {{ ppm }} kcal
+            {% else %}
+                Brak danych do obliczenia PPM (wprowadź wagę, wzrost, płeć i wiek)
+            {% endif %}
+        </p>
+        {% if age %}
+            <p><strong>Wiek:</strong> {{ age }} lat</p>
+        {% endif %}
+    </div>
 
-<h3>Aktywności</h3>
-<ul>
-  {% for activity in activities %}
-    <li>{{ activity.activity }} - {{ activity.calories_burned }} kcal</li>
-  {% empty %}
-    <li>Brak aktywności</li>
-  {% endfor %}
-</ul>
+    <div class="section">
+        <h2>Posiłki</h2>
+        {% if meals %}
+            <ul>
+                {% for meal in meals %}
+                    <li>{{ meal.meal }} - {{ meal.calories }} kcal</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Brak posiłków</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Aktywności</h2>
+        {% if activities %}
+            <ul>
+                {% for activity in activities %}
+                    <li>{{ activity.activity }} - {{ activity.calories_burned }} kcal</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Brak aktywności</p>
+        {% endif %}
+    </div>
+
+</body>
+</html>

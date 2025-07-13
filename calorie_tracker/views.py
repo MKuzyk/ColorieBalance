@@ -9,6 +9,7 @@ from rest_framework import status
 from calorie_tracker.models import Meal, Activity, UserProfile
 from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer, MealSerializer
 import requests
+from math import pow
 
 # --- Widok logowania sesyjnego (HTML) ---
 def login_view(request):
@@ -117,6 +118,10 @@ class UserProfileAPIView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+def calculate_age(birth_date):
+    today = date.today()
+    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
 class DailySummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -131,6 +136,41 @@ class DailySummaryAPIView(APIView):
         total_burned = sum(activity.calories_burned for activity in activities)
         balance = total_eaten - total_burned
 
+        profile = UserProfile.objects.filter(user=user).first()
+        bmi = None
+        bmi_status = None
+        ppm = None
+        age = None
+
+        if profile and profile.weight_kg and profile.height_cm and profile.gender:
+            height_m = profile.height_cm / 100
+            bmi = profile.weight_kg / pow(height_m, 2)
+
+            # BMI status
+            if bmi < 18.5:
+                bmi_status = 'Niedowaga'
+            elif 18.5 <= bmi < 25:
+                bmi_status = 'Waga prawidłowa'
+            elif 25 <= bmi < 30:
+                bmi_status = 'Nadwaga'
+            else:
+                bmi_status = 'Otyłość'
+
+            # Oblicz wiek jeśli jest birth_date
+            if hasattr(profile, 'birth_date') and profile.birth_date:
+                age = calculate_age(profile.birth_date)
+            else:
+                age = None  # albo możesz mieć pole age bezpośrednio
+
+            # Oblicz PPM wg płci
+            if age:
+                if profile.gender.lower() == 'f':
+                    ppm = 655 + (9.6 * profile.weight_kg) + (1.8 * profile.height_cm) - (4.7 * age)
+                elif profile.gender.lower() == 'm':
+                    ppm = 66 + (13.7 * profile.weight_kg) + (5 * profile.height_cm) - (6.8 * age)
+
+        calorie_status = "Nadwyżka kaloryczna" if balance > 0 else "Deficyt kaloryczny" if balance < 0 else "Bilans zerowy"
+
         meals_data = [{"meal": m.meal, "calories": m.calories} for m in meals]
         activities_data = [{"activity": a.activity, "calories_burned": a.calories_burned} for a in activities]
 
@@ -138,6 +178,11 @@ class DailySummaryAPIView(APIView):
             "total_eaten": total_eaten,
             "total_burned": total_burned,
             "balance": balance,
+            "calorie_status": calorie_status,
+            "bmi": round(bmi, 2) if bmi else None,
+            "bmi_status": bmi_status,
+            "ppm": round(ppm, 2) if ppm else None,
+            "age": age,
             "meals": meals_data,
             "activities": activities_data
         })
@@ -175,8 +220,10 @@ def dashboard_view(request):
 
 @login_required
 def daily_summary_view(request):
-    today = date.today()
     user = request.user
+    profile = getattr(user, 'userprofile', None)
+
+    today = date.today()
 
     meals = Meal.objects.filter(user=user, date=today)
     activities = Activity.objects.filter(user=user, date=today)
@@ -185,11 +232,50 @@ def daily_summary_view(request):
     total_burned = sum(activity.calories_burned for activity in activities)
     balance = total_eaten - total_burned
 
+    # Oblicz BMI
+    if profile and profile.weight and profile.height:
+        height_m = profile.height / 100  # cm -> m
+        bmi = profile.weight / (height_m ** 2)
+        bmi = round(bmi, 2)
+    else:
+        bmi = None
+
+    # Oblicz wiek
+    if profile and profile.date_of_birth:
+        today = date.today()
+        age = today.year - profile.date_of_birth.year - (
+                    (today.month, today.day) < (profile.date_of_birth.month, profile.date_of_birth.day))
+    else:
+        age = None
+
+    # Oblicz PPM (wzór Harrisa-Benedicta)
+    ppm = None
+    if profile and profile.weight and profile.height and age is not None and profile.gender:
+        if profile.gender == 'F':
+            ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
+        else:  # assuming 'M'
+            ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
+        ppm = round(ppm, 2)
+
+    # Oblicz deficyt/nadwyżkę względem PPM (jeśli ppm jest dostępne)
+    calorie_status = None
+    if ppm is not None:
+        calorie_diff = balance - ppm
+        if calorie_diff < 0:
+            calorie_status = f"Deficyt kaloryczny: {abs(calorie_diff):.2f} kcal"
+        elif calorie_diff > 0:
+            calorie_status = f"Nadwyżka kaloryczna: {calorie_diff:.2f} kcal"
+        else:
+            calorie_status = "Bilans kaloryczny na poziomie PPM"
+
     context = {
-        "total_eaten": total_eaten,
-        "total_burned": total_burned,
-        "balance": balance,
-        "meals": meals,
-        "activities": activities,
+        'total_eaten': total_eaten,
+        'total_burned': total_burned,
+        'balance': balance,
+        'meals': meals,
+        'activities': activities,
+        'bmi': bmi,
+        'ppm': ppm,
+        'calorie_status': calorie_status,
     }
     return render(request, "daily_summary.html", context)
