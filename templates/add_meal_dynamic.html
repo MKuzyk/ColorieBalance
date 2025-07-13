@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Dodaj Posiłek</title>
+</head>
+<body>
+  <h1>Dodaj posiłek</h1>
+
+  <form id="mealForm">
+    <label for="food">Wybierz posiłek:</label>
+    <select id="food" name="food">
+      <option value="bread">Chleb</option>
+      <option value="apple">Jabłko</option>
+      <option value="rice">Ryż</option>
+      <option value="egg">Jajko</option>
+    </select>
+    <br><br>
+
+    <button type="submit">Dodaj</button>
+  </form>
+
+  <p id="response"></p>
+
+  <script>
+    const token = "TWÓJ_ACCESS_TOKEN_TUTAJ";  // ← Uzupełnij token JWT
+
+    document.getElementById("mealForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      const foodName = document.getElementById("food").value;
+
+      // Na tym etapie możemy dodać zapytanie do Nutritionix (lub przykładowe dane)
+      const mealData = {
+        foods: [
+          {
+            food_name: foodName,
+            nf_calories: 100,
+            nf_protein: 5,
+            nf_total_carbohydrate: 20,
+            nf_total_fat: 2,
+            serving_qty: 1,
+            serving_unit: "sztuka"
+          }
+        ]
+      };
+
+      fetch("http://127.0.0.1:8000/api/add-meal/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify(mealData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById("response").textContent = "Dodano posiłek: " + foodName;
+      })
+      .catch(error => {
+        document.getElementById("response").textContent = "Błąd: " + error;
+      });
+    });
+  </script>
+</body>
+</html>

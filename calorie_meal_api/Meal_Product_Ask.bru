@@ -1,0 +1,19 @@
+meta {
+  name: Meal_Product_Ask
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://127.0.0.1:8000/api/nutritionix-meal/
+  body: json
+  auth: inherit
+}
+
+params:query {
+  : 
+}
+
+body:json {
+  {"meal": "apple"}
+}

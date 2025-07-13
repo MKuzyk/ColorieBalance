@@ -1,0 +1,28 @@
+meta {
+  name: Add_Meal_DB
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://127.0.0.1:8000/api/add-meal/
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "foods": [
+      {
+        "food_name": "apple",
+        "nf_calories": 95,
+        "nf_protein": 0.5,
+        "nf_total_carbohydrate": 25,
+        "nf_total_fat": 0.3,
+        "serving_qty": 1,
+        "serving_unit": "medium (3\" dia)"
+      }
+    ]
+  }
+  
+}
