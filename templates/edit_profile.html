@@ -18,74 +18,99 @@
     <button id="logout-btn">Wyloguj się</button>
 
     <script>
-        const token = localStorage.getItem('authToken');
-
-        if (!token) {
-            window.location.href = '/login/';
-        } else {
-            // Załaduj dane profilu do formularza
-            fetch('/api/profile/', {
-                headers: {
-                    'Authorization': 'Token ' + token,
-                    'Content-Type': 'application/json'
+        // Pobierz CSRF token z ciasteczek
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
                 }
+            }
+            return cookieValue;
+        }
+
+        // Załaduj dane profilu do formularza
+        fetch('/api/profile/', {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include'  // wysyłaj ciasteczka sesyjne
+        })
+        .then(res => {
+            if (res.status === 401 || res.status === 403) {
+                // Nie zalogowany, przekieruj do logowania
+                window.location.href = '/accounts/login/?next=/edit-profile/';
+                throw new Error('Nieautoryzowany dostęp');
+            }
+            if (!res.ok) throw new Error('Błąd ładowania profilu');
+            return res.json();
+        })
+        .then(data => {
+            document.getElementById('weightInput').value = data.weight || '';
+            document.getElementById('heightInput').value = data.height || '';
+            document.getElementById('dobInput').value = data.date_of_birth || '';
+        })
+        .catch(err => {
+            console.error(err);
+        });
+
+        // Obsługa zapisu formularza
+        document.getElementById('editProfileForm').addEventListener('submit', e => {
+            e.preventDefault();
+
+            const payload = {
+                weight: parseFloat(document.getElementById('weightInput').value),
+                height: parseFloat(document.getElementById('heightInput').value),
+                date_of_birth: document.getElementById('dobInput').value,
+            };
+
+            fetch('/api/profile/', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                credentials: 'include',
+                body: JSON.stringify(payload)
             })
             .then(res => {
-                if (!res.ok) throw new Error('Brak dostępu');
-                return res.json();
-            })
-            .then(data => {
-                document.getElementById('weightInput').value = data.weight || '';
-                document.getElementById('heightInput').value = data.height || '';
-                document.getElementById('dobInput').value = data.date_of_birth || '';
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = '/accounts/login/?next=/edit-profile/';
+                    throw new Error('Nieautoryzowany dostęp');
+                }
+                if (res.ok) {
+                    alert('Profil został zapisany');
+                    window.location.href = '/profile/';
+                } else {
+                    alert('Błąd podczas zapisu');
+                }
             })
             .catch(err => {
                 console.error(err);
-                localStorage.removeItem('authToken');
-                window.location.href = '/login/';
+                alert('Błąd sieci');
             });
+        });
 
-            // Obsługa zapisu formularza
-            document.getElementById('editProfileForm').addEventListener('submit', e => {
-                e.preventDefault();
+        document.getElementById('cancel-btn').addEventListener('click', () => {
+            window.location.href = '/profile/';
+        });
 
-                const payload = {
-                    weight: parseFloat(document.getElementById('weightInput').value),
-                    height: parseFloat(document.getElementById('heightInput').value),
-                    date_of_birth: document.getElementById('dobInput').value,
-                };
-
-                fetch('/api/profile/', {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': 'Token ' + token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(res => {
-                    if (res.ok) {
-                        alert('Profil został zapisany');
-                        window.location.href = '/profile/';
-                    } else {
-                        alert('Błąd podczas zapisu');
-                    }
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert('Błąd sieci');
-                });
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            fetch('/accounts/logout/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = '/accounts/login/';
             });
-
-            document.getElementById('cancel-btn').addEventListener('click', () => {
-                window.location.href = '/profile/';
-            });
-
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                localStorage.removeItem('authToken');
-                window.location.href = '/login/';
-            });
-        }
+        });
     </script>
 </body>
 </html>

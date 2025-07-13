@@ -26,20 +26,41 @@
   <div id="result"></div>
 
   <script>
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+
     document.getElementById("searchForm").addEventListener("submit", function(e) {
       e.preventDefault();
 
       const mealName = document.getElementById("mealInput").value;
       const username = document.getElementById("usernameInput").value;
 
-      fetch("http://127.0.0.1:8000/api/nutritionix-meal/", {
+      fetch("/api/nutritionix-meal/", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrftoken
         },
         body: JSON.stringify({ meal: mealName })
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) throw new Error("Błąd zapytania");
+        return response.json();
+      })
       .then(data => {
         const food = data.foods?.[0];
         if (!food) {
@@ -59,10 +80,11 @@
         document.getElementById("result").innerHTML = html;
 
         document.getElementById("addMealBtn").addEventListener("click", () => {
-          fetch("http://127.0.0.1:8000/api/add-meal/", {
+          fetch("/api/add-meal/", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrftoken
             },
             body: JSON.stringify({ foods: [food], username: username })
           })

@@ -1,42 +1,33 @@
+from datetime import date
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.shortcuts import render, redirect
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from calorie_tracker.models import Meal, Activity, UserProfile
-from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer
-from django.shortcuts import render, redirect
-from rest_framework.authtoken.models import Token
+from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer, MealSerializer
 import requests
 
 # --- Widok logowania sesyjnego (HTML) ---
-
 def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        next_url = request.POST.get('next') or '/dashboard/'  # domyślnie dashboard
 
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('user-profile')
+            return redirect(next_url)
         else:
             return render(request, 'registration/login.html', {'error': 'Nieprawidłowe dane logowania'})
 
-    return render(request, 'registration/login.html')
+    next_url = request.GET.get('next', '/dashboard/')
+    return render(request, 'registration/login.html', {'next': next_url})
 
-# --- Endpoint API do pobrania tokena, tylko dla zalogowanych sesyjnie użytkowników ---
-
-class GetAuthTokenView(APIView):
-    permission_classes = [IsAuthenticated]  # musisz być zalogowany sesyjnie lub tokenem
-
-    def get(self, request):
-        token, _ = Token.objects.get_or_create(user=request.user)
-        return Response({"token": token.key})
-
-# --- API do dodawania posiłków i aktywności ---
-
+# --- API do pobrania danych z Nutritionix i zapisu do bazy ---
 class NutritionixMealAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -126,16 +117,57 @@ class UserProfileAPIView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# --- Widoki HTML z sesyjnym dostępem ---
+class DailySummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        today = date.today()
+        user = request.user
+
+        meals = Meal.objects.filter(user=user, date=today)
+        activities = Activity.objects.filter(user=user, date=today)
+
+        total_eaten = sum(meal.calories for meal in meals)
+        total_burned = sum(activity.calories_burned for activity in activities)
+        balance = total_eaten - total_burned
+
+        meals_data = [{"meal": m.meal, "calories": m.calories} for m in meals]
+        activities_data = [{"activity": a.activity, "calories_burned": a.calories_burned} for a in activities]
+
+        return Response({
+            "total_eaten": total_eaten,
+            "total_burned": total_burned,
+            "balance": balance,
+            "meals": meals_data,
+            "activities": activities_data
+        })
+
+class MealsTodayAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = date.today()
+        meals = Meal.objects.filter(user=request.user, date=today)
+        serializer = MealSerializer(meals, many=True)
+        return Response(serializer.data)
+
+# --- Widoki HTML z sesyjnym dostępem ---
+@login_required
 def profile_view(request):
     return render(request, "profile.html")
 
+@login_required
 def edit_profile_view(request):
     return render(request, "edit_profile.html")
 
+@login_required
 def add_activity_form(request):
     return render(request, "add_activity.html")
 
+@login_required
 def add_meal_dynamic(request):
     return render(request, "add_meal_dynamic.html")
+
+@login_required
+def dashboard_view(request):
+    return render(request, 'dashboard.html')

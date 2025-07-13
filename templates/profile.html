@@ -15,45 +15,66 @@
     <button id="logout-btn">Wyloguj się</button>
 
     <script>
-        const token = localStorage.getItem('authToken');
-
-        if (!token) {
-            window.location.href = '/login/';
-        } else {
-            fetch('/api/profile/', {
-                headers: {
-                    'Authorization': 'Token ' + token,
-                    'Content-Type': 'application/json'
+        // Funkcja pobierająca ciasteczko
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
                 }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Brak dostępu lub nieprawidłowy token');
-                }
-                return response.json();
-            })
-            .then(data => {
-                const profileDiv = document.getElementById('profile-info');
-                profileDiv.innerHTML = `
-                    <p>Waga: ${data.weight ?? 'nie podano'}</p>
-                    <p>Wzrost: ${data.height ?? 'nie podano'}</p>
-                    <p>Data urodzenia: ${data.date_of_birth ?? 'nie podano'}</p>
-                `;
-            })
-            .catch(err => {
-                console.error(err);
-                localStorage.removeItem('authToken');
-                window.location.href = '/login/';
-            });
+            }
+            return cookieValue;
         }
+
+        // Pobierz dane profilu
+        fetch('/api/profile/', {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include'  // wysyłaj ciasteczka sesyjne
+        })
+        .then(response => {
+            if (response.status === 401 || response.status === 403) {
+                // Nie zalogowany, przekieruj do logowania
+                window.location.href = '/accounts/login/?next=/profile/';
+                throw new Error('Nieautoryzowany dostęp');
+            }
+            if (!response.ok) {
+                throw new Error('Błąd ładowania profilu');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const profileDiv = document.getElementById('profile-info');
+            profileDiv.innerHTML = `
+                <p>Waga: ${data.weight ?? 'nie podano'}</p>
+                <p>Wzrost: ${data.height ?? 'nie podano'}</p>
+                <p>Data urodzenia: ${data.date_of_birth ?? 'nie podano'}</p>
+            `;
+        })
+        .catch(err => {
+            console.error(err);
+        });
 
         document.getElementById('edit-profile-btn').addEventListener('click', () => {
             window.location.href = '/edit-profile/';
         });
 
         document.getElementById('logout-btn').addEventListener('click', () => {
-            localStorage.removeItem('authToken');
-            window.location.href = '/login/';
+            fetch('/accounts/logout/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = '/accounts/login/';
+            });
         });
     </script>
 </body>

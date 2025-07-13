@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8" />
+    <title>Dashboard - Bilans kalorii</title>
+</head>
+<body>
+    <h1>Twój dashboard</h1>
+
+    <div id="meals-list">
+        Ładowanie posiłków na dziś...
+    </div>
+
+    <button id="logout-btn">Wyloguj się</button>
+
+    <script>
+        // Pobierz posiłki na dziś z API (sesja Django załatwia auth)
+        fetch('/api/meals-today/')
+        .then(response => {
+            if (response.status === 403 || response.status === 401) {
+                // Brak autoryzacji → przekieruj na login
+                window.location.href = '/accounts/login/?next=/dashboard/';
+                throw new Error('Nieautoryzowany dostęp');
+            }
+            if (!response.ok) {
+                throw new Error('Błąd pobierania posiłków');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const mealsDiv = document.getElementById('meals-list');
+            if (data.length === 0) {
+                mealsDiv.innerHTML = '<p>Brak posiłków na dziś.</p>';
+            } else {
+                mealsDiv.innerHTML = data.map(meal => 
+                    `<p><strong>${meal.meal}</strong>: ${meal.calories} kcal</p>`
+                ).join('');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            const mealsDiv = document.getElementById('meals-list');
+            mealsDiv.innerHTML = '<p>Wystąpił błąd podczas ładowania posiłków.</p>';
+        });
+
+        // Wylogowanie - zakładamy, że masz url /accounts/logout/ obsługujący POST
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            fetch('/accounts/logout/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+            }).then(() => {
+                window.location.href = '/accounts/login/';
+            });
+        });
+
+        // Funkcja do pobierania cookie (CSRF)
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    // Sprawdź czy cookie zaczyna się od nazwy
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

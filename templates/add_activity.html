@@ -1,7 +1,4 @@
 <form id="activityForm">
-  <label for="username">Nazwa użytkownika:</label>
-  <input id="username" name="username" required>
-
   <label for="activity">Aktywność:</label>
   <input id="activity" name="activity" required>
 
@@ -14,37 +11,52 @@
 <div id="result"></div>
 
 <script>
+// Funkcja do pobrania CSRF tokena z ciasteczek
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
 document.getElementById("activityForm").addEventListener("submit", function(e) {
   e.preventDefault();
 
-  const token = localStorage.getItem("authToken"); // pobranie tokena
-
-  if (!token) {
-    document.getElementById("result").innerText = "Brak tokena autoryzacyjnego. Zaloguj się ponownie.";
-    return;
-  }
-
-  const username = document.getElementById("username").value;
   const activity = document.getElementById("activity").value;
   const calories = parseFloat(document.getElementById("calories").value);
 
-  fetch("http://127.0.0.1:8000/api/add-activity/", {
+  fetch("/api/add-activity/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Token " + token
+      "X-CSRFToken": getCookie('csrftoken')  // CSRF token
     },
-    body: JSON.stringify({ username, activity, calories_burned: calories })
+    body: JSON.stringify({ activity, calories_burned: calories })
   })
   .then(res => {
+    if (res.status === 403 || res.status === 401) {
+      // Nie zalogowany → przekieruj do logowania
+      window.location.href = '/accounts/login/?next=/add-activity-form/';
+      throw new Error('Nieautoryzowany dostęp, zaloguj się');
+    }
     if (!res.ok) throw new Error("Błąd: " + res.status);
     return res.json();
   })
   .then(data => {
     document.getElementById("result").innerText = "✅ Aktywność dodana: " + JSON.stringify(data);
+    // opcjonalnie wyczyść formularz
+    document.getElementById("activityForm").reset();
   })
   .catch(err => {
-    document.getElementById("result").innerText = "❌ Błąd: " + err;
+    document.getElementById("result").innerText = "❌ Błąd: " + err.message;
   });
 });
 </script>

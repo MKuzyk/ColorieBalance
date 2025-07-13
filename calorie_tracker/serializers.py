@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Activity, UserProfile
+from .models import Meal
 
 class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,3 +11,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['id', 'user', 'weight', 'height', 'date_of_birth']
+
+class MealSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Meal
+        fields = ['meal', 'calories']  # wybieramy tylko potrzebne pola
