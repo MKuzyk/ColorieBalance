@@ -64,6 +64,9 @@ document.addEventListener("DOMContentLoaded", function() {
         return response.json();
     })
     .then(data => {
+        const genderDisplay = data.gender_display ||
+                        (data.gender === 'M' ? 'Mężczyzna' :
+                         data.gender === 'F' ? 'Kobieta' : 'nie podano');
         const profileDiv = document.getElementById('profile-info');
 
         // Formatowanie daty urodzenia
@@ -86,6 +89,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 <div class="list-group-item d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-birthday-cake me-2 text-muted"></i>Data urodzenia</span>
                     <span class="fw-bold">${birthDate}</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-venus-mars me-2 text-muted"></i>Płeć</span>
+                    <span class="fw-bold">${genderDisplay}</span>
                 </div>
             </div>
         `;

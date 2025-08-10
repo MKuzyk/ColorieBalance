@@ -9,39 +9,51 @@
             </div>
             <div class="card-body">
                 <form id="editProfileForm">
+                    <!-- Waga -->
                     <div class="mb-3">
                         <label for="weightInput" class="form-label">Waga (kg)</label>
                         <input type="number" step="0.1" class="form-control" id="weightInput"
-                               placeholder="Wprowadź swoją wagę">
+                               min="30" max="300" required>
+                        <div class="invalid-feedback">Podaj poprawną wagę (30-300 kg)</div>
                     </div>
 
+                    <!-- Wzrost -->
                     <div class="mb-3">
                         <label for="heightInput" class="form-label">Wzrost (cm)</label>
                         <input type="number" step="0.1" class="form-control" id="heightInput"
-                               placeholder="Wprowadź swój wzrost">
+                               min="100" max="250" required>
+                        <div class="invalid-feedback">Podaj poprawny wzrost (100-250 cm)</div>
                     </div>
 
+                    <!-- Data urodzenia -->
                     <div class="mb-3">
                         <label for="dobInput" class="form-label">Data urodzenia</label>
-                        <input type="date" class="form-control" id="dobInput">
+                        <input type="date" class="form-control" id="dobInput" required
+                               max="{{ today|date:'Y-m-d' }}">
+                        <div class="invalid-feedback">Podaj poprawną datę urodzenia</div>
                     </div>
 
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <!-- Płeć -->
+                    <div class="mb-3">
+                        <label for="genderSelect" class="form-label">Płeć</label>
+                        <select class="form-select" id="genderSelect" required>
+                            <option value="">Wybierz płeć</option>
+                            <option value="M">Mężczyzna</option>
+                            <option value="F">Kobieta</option>
+                        </select>
+                        <div class="invalid-feedback">Wybierz płeć</div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                         <button type="button" id="cancel-btn" class="btn btn-secondary me-md-2">
                             <i class="fas fa-times me-2"></i>Anuluj
                         </button>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">
                             <i class="fas fa-save me-2"></i>Zapisz zmiany
                         </button>
                     </div>
                 </form>
             </div>
-        </div>
-
-        <div class="text-center mt-3">
-            <button id="logout-btn" class="btn btn-outline-danger">
-                <i class="fas fa-sign-out-alt me-2"></i>Wyloguj się
-            </button>
         </div>
     </div>
 </div>
@@ -64,45 +76,102 @@ document.addEventListener("DOMContentLoaded", function() {
         return cookieValue;
     }
 
-    // Załaduj dane profilu
-    const form = document.getElementById('editProfileForm');
-    const submitBtn = form.querySelector('button[type="submit"]');
+    // Funkcja do wyświetlania powiadomień
+    function showToast(type, message) {
+        // Usuń istniejące toasty
+        document.querySelectorAll('.toast-container').forEach(el => el.remove());
 
-    fetch('/api/profile/', {
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        credentials: 'include'
-    })
-    .then(res => {
-        if (res.status === 401 || res.status === 403) {
-            window.location.href = '/accounts/login/?next=/edit-profile/';
-            throw new Error('Nieautoryzowany dostęp');
-        }
-        if (!res.ok) throw new Error('Błąd ładowania profilu');
-        return res.json();
-    })
-    .then(data => {
-        document.getElementById('weightInput').value = data.weight || '';
-        document.getElementById('heightInput').value = data.height || '';
-        document.getElementById('dobInput').value = data.date_of_birth || '';
-    })
-    .catch(err => {
-        console.error(err);
-    });
+        const toastHTML = `
+            <div class="position-fixed bottom-0 end-0 p-3 toast-container" style="z-index: 1100">
+                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header bg-${type} text-white">
+                        <strong class="me-auto">
+                            <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle me-2"></i>
+                            ${type === 'success' ? 'Sukces' : 'Błąd'}
+                        </strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', toastHTML);
+        setTimeout(() => document.querySelector('.toast-container')?.remove(), 5000);
+    }
 
-    // Obsługa zapisu formularza
-    form.addEventListener('submit', function(e) {
+    // Walidacja formularza
+    function validateForm() {
+        let isValid = true;
+        const form = document.getElementById('editProfileForm');
+
+        // Sprawdź wymagane pola
+        ['weightInput', 'heightInput', 'dobInput', 'genderSelect'].forEach(id => {
+            const element = document.getElementById(id);
+            if (!element.value) {
+                element.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                element.classList.remove('is-invalid');
+            }
+        });
+
+        return isValid;
+    }
+
+    // Ładowanie danych profilu
+    function loadProfileData() {
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = true;
+
+        fetch('/api/profile/', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.status === 401 || response.status === 403) {
+                window.location.href = '/accounts/login/?next=/edit-profile/';
+                throw new Error('Nieautoryzowany dostęp');
+            }
+            if (!response.ok) throw new Error('Błąd ładowania profilu');
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('weightInput').value = data.weight || '';
+            document.getElementById('heightInput').value = data.height || '';
+            document.getElementById('dobInput').value = data.date_of_birth || '';
+            document.getElementById('genderSelect').value = data.gender || '';
+            submitBtn.disabled = false;
+        })
+        .catch(err => {
+            console.error('Błąd ładowania profilu:', err);
+            showToast('danger', err.message);
+            submitBtn.disabled = false;
+        });
+    }
+
+    // Obsługa formularza
+    document.getElementById('editProfileForm').addEventListener('submit', function(e) {
         e.preventDefault();
 
+        if (!validateForm()) {
+            showToast('danger', 'Wypełnij poprawnie wszystkie wymagane pola');
+            return;
+        }
+
+        const submitBtn = document.getElementById('submit-btn');
         const originalBtnText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Zapisywanie...';
+
         submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Zapisywanie...';
 
         const payload = {
             weight: parseFloat(document.getElementById('weightInput').value),
             height: parseFloat(document.getElementById('heightInput').value),
-            date_of_birth: document.getElementById('dobInput').value
+            date_of_birth: document.getElementById('dobInput').value,
+            gender: document.getElementById('genderSelect').value
         };
 
         fetch('/api/profile/', {
@@ -114,59 +183,23 @@ document.addEventListener("DOMContentLoaded", function() {
             credentials: 'include',
             body: JSON.stringify(payload)
         })
-        .then(res => {
-            if (res.status === 401 || res.status === 403) {
+        .then(response => {
+            if (response.status === 401 || response.status === 403) {
                 window.location.href = '/accounts/login/?next=/edit-profile/';
                 throw new Error('Nieautoryzowany dostęp');
             }
-            if (!res.ok) throw new Error('Błąd podczas zapisu');
-            return res.json();
+            if (!response.ok) throw new Error('Błąd podczas zapisu');
+            return response.json();
         })
         .then(data => {
-            // Tworzymy i pokazujemy toast zamiast alertu
-            const toastHTML = `
-                <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-                        <div class="toast-header bg-success text-white">
-                            <strong class="me-auto"><i class="fas fa-check-circle me-2"></i>Sukces</strong>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
-                        </div>
-                        <div class="toast-body">
-                            Profil został pomyślnie zaktualizowany.
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.body.insertAdjacentHTML('beforeend', toastHTML);
-
-            // Automatyczne przekierowanie po 2 sekundach
-            setTimeout(() => {
-                window.location.href = '/profile/';
-            }, 2000);
+            showToast('success', 'Profil zaktualizowany pomyślnie!');
+            setTimeout(() => window.location.href = '/profile/', 1500);
         })
         .catch(err => {
-            console.error(err);
-
-            const toastHTML = `
-                <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-                        <div class="toast-header bg-danger text-white">
-                            <strong class="me-auto"><i class="fas fa-exclamation-circle me-2"></i>Błąd</strong>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
-                        </div>
-                        <div class="toast-body">
-                            ${err.message || 'Wystąpił błąd podczas zapisywania profilu.'}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.body.insertAdjacentHTML('beforeend', toastHTML);
-        })
-        .finally(() => {
-            submitBtn.innerHTML = originalBtnText;
+            console.error('Błąd zapisu:', err);
+            showToast('danger', err.message || 'Błąd podczas zapisywania profilu');
             submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
         });
     });
 
@@ -175,28 +208,30 @@ document.addEventListener("DOMContentLoaded", function() {
         window.location.href = '/profile/';
     });
 
-    // Obsługa wylogowania
-    document.getElementById('logout-btn').addEventListener('click', () => {
-        fetch('/accounts/logout/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-            },
-            credentials: 'include'
-        }).then(() => {
-            window.location.href = '/accounts/login/';
+    // Inicjalizacja - załaduj dane profilu
+    loadProfileData();
+
+    // Walidacja w czasie rzeczywistym
+    document.querySelectorAll('#editProfileForm input, #editProfileForm select').forEach(element => {
+        element.addEventListener('input', function() {
+            if (this.value) {
+                this.classList.remove('is-invalid');
+            }
         });
     });
 });
 </script>
 
 <style>
-    .form-control:focus {
+    .form-control:focus, .form-select:focus {
         border-color: #4e73df;
         box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
     }
     .toast {
         animation: fadeIn 0.3s;
+    }
+    .is-invalid {
+        border-color: #dc3545;
     }
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(20px); }

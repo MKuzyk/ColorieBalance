@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, timedelta
 from django.contrib.auth import authenticate, login
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
+from django.db.models.aggregates import Sum, Count
 from django.shortcuts import render, redirect
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -11,7 +11,8 @@ from calorie_tracker.models import Meal, Activity, UserProfile
 from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer, MealSerializer
 import requests
 from math import pow
-from .forms import ExtendedUserCreationForm
+from .forms import ExtendedUserCreationForm, ActivityForm, UserProfileForm
+
 
 # --- Widok logowania sesyjnego (HTML) ---
 def login_view(request):
@@ -80,29 +81,98 @@ class AddMealAPIView(APIView):
 
         return Response({"status": "Meals added successfully"}, status=status.HTTP_201_CREATED)
 
+
 class AddActivityAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        activity_name = request.data.get("activity")
-        calories = request.data.get("calories_burned")
+        # Rozszerzone dane aktywności
+        activity_type = request.data.get("activity_type")
+        duration = request.data.get("duration", 30)  # Domyślnie 30 minut
+        calories_burned = request.data.get("calories_burned")
+        notes = request.data.get("notes", "")
+        date = request.data.get("date")
 
-        if not activity_name or calories is None:
+        # Walidacja wymaganych pól
+        if not all([activity_type, calories_burned]):
             return Response(
-                {"error": "activity and calories_burned are required"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "activity_type and calories_burned are required"},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        user = request.user
+        try:
+            activity = Activity.objects.create(
+                user=request.user,
+                activity_type=activity_type,
+                duration=duration,
+                calories_burned=calories_burned,
+                notes=notes,
+                date=date or date.today()  # Użyj podanej daty lub dzisiejszej
+            )
 
-        activity = Activity.objects.create(
+            # Zwróć rozszerzone dane w odpowiedzi
+            return Response({
+                "status": "success",
+                "activity": ActivitySerializer(activity).data,
+                "weekly_summary": self.get_weekly_summary(request.user)
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get_weekly_summary(self, user):
+        """Pomocnicza metoda do pobierania podsumowania tygodnia"""
+        today = date.today()
+        week_ago = today - timedelta(days=7)
+
+        activities = Activity.objects.filter(
             user=user,
-            activity=activity_name,
-            calories_burned=calories,
+            date__range=[week_ago, today]
         )
 
-        serializer = ActivitySerializer(activity)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return {
+            "total_calories": activities.aggregate(Sum('calories_burned'))['calories_burned__sum'] or 0,
+            "total_duration": activities.aggregate(Sum('duration'))['duration__sum'] or 0,
+            "activity_count": activities.count()
+        }
+
+
+class ActivityStatsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        time_range = request.query_params.get('range', 'week')  # week/month/year
+
+        today = date.today()
+        if time_range == 'month':
+            start_date = today - timedelta(days=30)
+        elif time_range == 'year':
+            start_date = today - timedelta(days=365)
+        else:  # default to week
+            start_date = today - timedelta(days=7)
+
+        activities = Activity.objects.filter(
+            user=request.user,
+            date__range=[start_date, today]
+        )
+
+        # Grupowanie po typie aktywności
+        by_type = activities.values('activity_type').annotate(
+            total_duration=Sum('duration'),
+            total_calories=Sum('calories_burned'),
+            count=Count('id')
+        )
+
+        return Response({
+            "total_calories": activities.aggregate(Sum('calories_burned'))['calories_burned__sum'] or 0,
+            "total_duration": activities.aggregate(Sum('duration'))['duration__sum'] or 0,
+            "activities_by_type": by_type,
+            "start_date": start_date,
+            "end_date": today
+        })
 
 
 class UserProfileAPIView(APIView):
@@ -111,14 +181,13 @@ class UserProfileAPIView(APIView):
     def get(self, request):
         try:
             profile = UserProfile.objects.get(user=request.user)
+            serializer = UserProfileSerializer(profile)
+            return Response(serializer.data)
         except UserProfile.DoesNotExist:
             return Response({"error": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = UserProfileSerializer(profile)
-        return Response(serializer.data)
-
     def put(self, request):
-        profile, created = UserProfile.objects.get_or_create(user=request.user)
+        profile = request.user.userprofile
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
 
         if serializer.is_valid():
@@ -201,18 +270,55 @@ class MealsTodayAPIView(APIView):
         serializer = MealSerializer(meals, many=True)
         return Response(serializer.data)
 
-# --- Widoki HTML z sesyjnym dostępem ---
 @login_required
 def profile_view(request):
-    return render(request, "profile.html")
+    try:
+        profile = request.user.userprofile
+        context = {
+            'weight': profile.weight,
+            'height': profile.height,
+            'date_of_birth': profile.date_of_birth,
+            'gender': profile.get_gender_display() if profile.gender else None,
+        }
+        return render(request, "profile.html", context)
+    except UserProfile.DoesNotExist:
+        return redirect('edit-profile')
 
 @login_required
 def edit_profile_view(request):
-    return render(request, "edit_profile.html")
+    try:
+        profile = request.user.userprofile
+    except UserProfile.DoesNotExist:
+        profile = UserProfile(user=request.user)
+        profile.save()
+
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            return redirect('user-profile')
+    else:
+        form = UserProfileForm(instance=profile)
+
+    return render(request, "edit_profile.html", {
+        'form': form,
+        'profile': profile
+    })
+
 
 @login_required
 def add_activity_form(request):
-    return render(request, "add_activity.html")
+    if request.method == 'POST':
+        form = ActivityForm(request.POST)
+        if form.is_valid():
+            activity = form.save(commit=False)
+            activity.user = request.user
+            activity.save()
+            return redirect('daily-summary-html')
+    else:
+        form = ActivityForm()
+
+    return render(request, "add_activity.html", {'form': form})
 
 @login_required
 def add_meal_dynamic(request):
@@ -222,66 +328,43 @@ def add_meal_dynamic(request):
 def dashboard_view(request):
     return render(request, 'dashboard.html')
 
+def calculate_ppm(profile):
+    if profile.date_of_birth and profile.weight and profile.height and profile.gender:
+        age = calculate_age(profile.date_of_birth)
+        if profile.gender == 'F':
+            return 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
+        else:
+            return 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
+    return None
 
 @login_required
 def daily_summary_view(request):
     user = request.user
     profile = getattr(user, 'userprofile', None)
-
     today = date.today()
 
-    meals = Meal.objects.filter(user=user, date=today)
-    activities = Activity.objects.filter(user=user, date=today)
+    meals = Meal.objects.filter(user=user, date=today).order_by('-id')
+    activities = Activity.objects.filter(user=user, date=today).order_by('-id')
 
     total_eaten = sum(meal.calories for meal in meals)
     total_burned = sum(activity.calories_burned for activity in activities)
     balance = total_eaten - total_burned
 
-    # Oblicz BMI
-    if profile and profile.weight and profile.height:  # Używamy weight i height
-        height_m = profile.height / 100  # height jest w cm, konwertujemy na metry
-        bmi = profile.weight / (height_m ** 2)  # weight jest w kg
-        bmi = round(bmi, 2)
-    else:
-        bmi = None
+    bmi = None
+    if profile and profile.weight and profile.height:
+        height_m = profile.height / 100
+        bmi = profile.weight / (height_m ** 2)
 
-    # Oblicz wiek
-    if profile and profile.date_of_birth:
-        today = date.today()
-        age = today.year - profile.date_of_birth.year - (
-                    (today.month, today.day) < (profile.date_of_birth.month, profile.date_of_birth.day))
-    else:
-        age = None
-
-    # Oblicz PPM (wzór Harrisa-Benedicta)
-    ppm = None
-    if profile and profile.weight and profile.height and age is not None and profile.gender:
-        if profile.gender == 'F':
-            ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)  # weight w kg, height w cm
-        else:  # assuming 'M'
-            ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)  # weight w kg, height w cm
-        ppm = round(ppm, 2)
-
-    # Oblicz deficyt/nadwyżkę względem PPM (jeśli ppm jest dostępne)
-    calorie_status = None
-    if ppm is not None:
-        calorie_diff = balance - ppm
-        if calorie_diff < 0:
-            calorie_status = f"Deficyt kaloryczny: {abs(calorie_diff):.2f} kcal"
-        elif calorie_diff > 0:
-            calorie_status = f"Nadwyżka kaloryczna: {calorie_diff:.2f} kcal"
-        else:
-            calorie_status = "Bilans kaloryczny na poziomie PPM"
+    ppm = calculate_ppm(profile) if profile else None
 
     context = {
-        'total_eaten': total_eaten,
-        'total_burned': total_burned,
-        'balance': balance,
+        'total_eaten': round(total_eaten, 2),
+        'total_burned': round(total_burned, 2),
+        'balance': round(balance, 2),
         'meals': meals,
         'activities': activities,
-        'bmi': bmi,
-        'ppm': ppm,
-        'calorie_status': calorie_status,
+        'bmi': round(bmi, 2) if bmi else None,
+        'ppm': round(ppm, 2) if ppm else None,
     }
     return render(request, "daily_summary.html", context)
 
@@ -298,7 +381,6 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
 
-            # Użyj get_or_create zamiast create, aby uniknąć duplikatów
             UserProfile.objects.get_or_create(
                 user=user,
                 defaults={
@@ -313,3 +395,49 @@ def register_view(request):
     else:
         form = ExtendedUserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
+
+
+from datetime import date, timedelta
+
+
+class WeeklySummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        end_date = date.today()
+        start_date = end_date - timedelta(days=6)  # Ostatnie 7 dni (włącznie z dzisiaj)
+
+        weekly_data = []
+
+        for single_date in (start_date + timedelta(n) for n in range(7)):
+            meals = Meal.objects.filter(user=user, date=single_date)
+            activities = Activity.objects.filter(user=user, date=single_date)
+
+            total_eaten = sum(meal.calories for meal in meals)
+            total_burned = sum(activity.calories_burned for activity in activities)
+            balance = total_eaten - total_burned
+
+            calorie_status = "Nadwyżka" if balance > 0 else "Deficyt" if balance < 0 else "Zerowy"
+
+            weekly_data.append({
+                'date': single_date,
+                'total_eaten': total_eaten,
+                'total_burned': total_burned,
+                'balance': balance,
+                'calorie_status': calorie_status,
+                'meals': [{'meal': m.meal, 'calories': m.calories} for m in meals],
+                'activities': [{
+                    'name': a.get_activity_type_display(),  # Używamy get_..._display()
+                    'type': a.activity_type,
+                    'duration': a.duration,
+                    'calories_burned': a.calories_burned,
+                    'notes': a.notes
+                } for a in activities]
+            })
+
+        return Response(weekly_data)
+
+def dashboard_view(request):
+    if request.user.is_authenticated:
+        return render(request, 'dashboard.html')

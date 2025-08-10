@@ -18,15 +18,29 @@ class Meal(models.Model):
     def __str__(self):
         return f"{self.meal} - {self.calories} kcal"
 
+
 class Activity(models.Model):
+    ACTIVITY_CHOICES = [
+        ('RUN', 'Bieganie'),
+        ('SWIM', 'Pływanie'),
+        ('CYCLE', 'Jazda na rowerze'),
+        ('GYM', 'Siłownia'),
+        ('OTHER', 'Inne')
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    activity = models.CharField(max_length=100)
-    calories_burned = models.FloatField()
-    date = models.DateField(auto_now_add=True)
-    raw_api_data = models.JSONField(null=True, blank=True)
+    activity_type = models.CharField(
+        max_length=20,
+        choices=ACTIVITY_CHOICES,
+        default='OTHER'  # Dodajemy domyślną wartość
+    )
+    duration = models.PositiveIntegerField(default=30)  # w minutach
+    calories_burned = models.PositiveIntegerField()
+    date = models.DateField()
+    notes = models.TextField(blank=True)
 
     def __str__(self):
-        return f"{self.activity} - {self.calories_burned} kcal burned"
+        return f"{self.get_activity_type_display()} - {self.duration}min, {self.calories_burned} kcal"
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -40,19 +54,17 @@ class UserProfile(models.Model):
         ('M', 'Mężczyzna'),
         ('K', 'Kobieta'),
     )
-    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True)
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True,default='M')
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}" if self.first_name else self.user.username
 
     def age(self):
-        if self.birth_date:
+        if self.date_of_birth:
             today = date.today()
-            return today.year - self.birth_date.year - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
+            return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
         return None
 
-    def __str__(self):
-        return f"Profil użytkownika {self.user.username}"
 
     def calculate_bmi(self):
         if self.weight and self.height:
@@ -69,8 +81,9 @@ class UserProfile(models.Model):
             )
         return None
 
-    def __str__(self):
-        return f"Profil {self.user.username}"
+    @property
+    def gender_display(self):
+        return self.get_gender_display()
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
