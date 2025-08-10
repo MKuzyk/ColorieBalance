@@ -1,76 +1,166 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8" />
-    <title>Dashboard - Bilans kalorii</title>
-</head>
-<body>
-    <h1>Twój dashboard</h1>
+{% extends "base.html" %}
 
-    <div id="meals-list">
-        Ładowanie posiłków na dziś...
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-primary text-white py-3">
+                <h4 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i>Twój Dashboard</h4>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <div class="card h-100 border-left-success">
+                            <div class="card-body">
+                                <h5 class="card-title text-success"><i class="fas fa-utensils me-2"></i>Dzisiejsze posiłki</h5>
+                                <div id="meals-list" class="mt-3">
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Ładowanie...</span>
+                                        </div>
+                                        <p class="mt-2">Ładowanie danych...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 border-left-info">
+                            <div class="card-body">
+                                <h5 class="card-title text-info"><i class="fas fa-fire me-2"></i>Podsumowanie</h5>
+                                <div id="daily-summary" class="mt-3">
+                                    <p class="text-muted">Trwa ładowanie podsumowania...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'add-meal-dynamic' %}" class="btn btn-success">
+                        <i class="fas fa-plus-circle me-2"></i>Dodaj posiłek
+                    </a>
+                    <button id="logout-btn" class="btn btn-outline-danger">
+                        <i class="fas fa-sign-out-alt me-2"></i>Wyloguj się
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <button id="logout-btn">Wyloguj się</button>
-
-    <script>
-        // Pobierz posiłki na dziś z API (sesja Django załatwia auth)
-        fetch('/api/meals-today/')
-        .then(response => {
-            if (response.status === 403 || response.status === 401) {
-                // Brak autoryzacji → przekieruj na login
-                window.location.href = '/accounts/login/?next=/dashboard/';
-                throw new Error('Nieautoryzowany dostęp');
-            }
-            if (!response.ok) {
-                throw new Error('Błąd pobierania posiłków');
-            }
-            return response.json();
-        })
-        .then(data => {
-            const mealsDiv = document.getElementById('meals-list');
-            if (data.length === 0) {
-                mealsDiv.innerHTML = '<p>Brak posiłków na dziś.</p>';
-            } else {
-                mealsDiv.innerHTML = data.map(meal => 
-                    `<p><strong>${meal.meal}</strong>: ${meal.calories} kcal</p>`
-                ).join('');
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            const mealsDiv = document.getElementById('meals-list');
-            mealsDiv.innerHTML = '<p>Wystąpił błąd podczas ładowania posiłków.</p>';
-        });
-
-        // Wylogowanie - zakładamy, że masz url /accounts/logout/ obsługujący POST
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            fetch('/accounts/logout/', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken'),
-                },
-            }).then(() => {
-                window.location.href = '/accounts/login/';
-            });
-        });
-
-        // Funkcja do pobierania cookie (CSRF)
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    // Sprawdź czy cookie zaczyna się od nazwy
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Funkcja do pobierania ciasteczka CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
                 }
             }
-            return cookieValue;
         }
-    </script>
-</body>
-</html>
+        return cookieValue;
+    }
+
+    // Ładowanie posiłków
+    fetch('/api/meals-today/')
+    .then(response => {
+        if (response.status === 403 || response.status === 401) {
+            window.location.href = '/accounts/login/?next=/dashboard/';
+            throw new Error('Nieautoryzowany dostęp');
+        }
+        if (!response.ok) throw new Error('Błąd pobierania posiłków');
+        return response.json();
+    })
+    .then(data => {
+        const mealsDiv = document.getElementById('meals-list');
+        if (data.length === 0) {
+            mealsDiv.innerHTML = '<p class="text-muted">Brak posiłków na dziś.</p>';
+        } else {
+            mealsDiv.innerHTML = `
+                <ul class="list-group list-group-flush">
+                    ${data.map(meal => `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>${meal.meal}</span>
+                            <span class="badge bg-primary rounded-pill">${meal.calories} kcal</span>
+                        </li>
+                    `).join('')}
+                </ul>
+                <div class="mt-3 text-end">
+                    <strong>Razem: ${data.reduce((sum, meal) => sum + meal.calories, 0)} kcal</strong>
+                </div>
+            `;
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        document.getElementById('meals-list').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>Wystąpił błąd podczas ładowania posiłków.
+            </div>
+        `;
+    });
+
+    // Ładowanie podsumowania dnia
+    fetch('/api/user-daily-summary/')
+    .then(response => {
+        if (!response.ok) throw new Error('Błąd pobierania podsumowania');
+        return response.json();
+    })
+    .then(data => {
+        const summaryDiv = document.getElementById('daily-summary');
+        summaryDiv.innerHTML = `
+            <div class="mb-3">
+                <h6>Kalorie:</h6>
+                <p>Zjedzone: <strong>${data.total_eaten || 0} kcal</strong></p>
+                <p>Spalone: <strong>${data.total_burned || 0} kcal</strong></p>
+                <p>Bilans: <strong class="${data.balance < 0 ? 'text-danger' : 'text-success'}">
+                    ${data.balance || 0} kcal
+                </strong></p>
+            </div>
+        `;
+    })
+    .catch(err => {
+        console.error(err);
+        document.getElementById('daily-summary').innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-circle me-2"></i>Nie udało się załadować podsumowania.
+            </div>
+        `;
+    });
+
+    // Obsługa wylogowania
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        fetch('/accounts/logout/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+        }).then(() => {
+            window.location.href = '/accounts/login/';
+        });
+    });
+});
+</script>
+
+<style>
+    .border-left-success {
+        border-left: 4px solid #28a745 !important;
+    }
+    .border-left-info {
+        border-left: 4px solid #17a2b8 !important;
+    }
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    .list-group-item {
+        padding: 0.75rem 1.25rem;
+    }
+</style>
+{% endblock %}

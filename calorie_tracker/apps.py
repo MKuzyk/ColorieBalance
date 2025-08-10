@@ -12,3 +12,6 @@ class CalorieTrackerConfig(AppConfig):
 
     def ready(self):
         import calorie_tracker.signals
+
+from django.apps import AppConfig
+

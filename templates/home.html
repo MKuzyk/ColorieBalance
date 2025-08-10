@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container text-center mt-5">
+    <h1>Witaj w CalorieBalance!</h1>
+    <div class="mt-4">
+        <a href="{% url 'login' %}" class="btn btn-primary btn-lg mx-2">
+            <i class="fas fa-sign-in-alt"></i> Zaloguj się
+        </a>
+        <a href="{% url 'register' %}" class="btn btn-secondary btn-lg mx-2">
+            <i class="fas fa-user-plus"></i> Zarejestruj
+        </a>
+    </div>
+</div>
+{% endblock %}

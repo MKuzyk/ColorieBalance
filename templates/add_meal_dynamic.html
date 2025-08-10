@@ -1,107 +1,158 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-  <meta charset="UTF-8">
-  <title>Dodaj posiłek (dynamicznie)</title>
-  <style>
-    label, input, button {
-      display: block;
-      margin: 10px 0;
-    }
-  </style>
-</head>
-<body>
-  <h2>Dodaj posiłek z Nutritionix</h2>
+{% extends "base.html" %}
 
-  <form id="searchForm">
-    <label for="usernameInput">Podaj nazwę użytkownika:</label>
-    <input type="text" id="usernameInput" name="username" required placeholder="np. janek123">
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-utensils me-2"></i>Dodaj posiłek</h4>
+            </div>
+            <div class="card-body">
+                <form id="searchForm" class="mb-4">
+                    <div class="mb-3">
+                        <label for="mealInput" class="form-label">Wpisz nazwę posiłku:</label>
+                        <input type="text" class="form-control" id="mealInput" name="meal" required
+                               placeholder="np. kanapka z serem, kurczak z ryżem...">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Szukaj w Nutritionix
+                        </button>
+                    </div>
+                </form>
 
-    <label for="mealInput">Wpisz nazwę posiłku:</label>
-    <input type="text" id="mealInput" name="meal" required placeholder="np. apple, rice...">
+                <div id="result" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    <button type="submit">Szukaj</button>
-  </form>
-
-  <div id="result"></div>
-
-  <script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
     function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
         }
-      }
-      return cookieValue;
+        return cookieValue;
     }
 
     const csrftoken = getCookie('csrftoken');
 
     document.getElementById("searchForm").addEventListener("submit", function(e) {
-      e.preventDefault();
+        e.preventDefault();
+        const resultDiv = document.getElementById("result");
+        resultDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Ładowanie...</span></div></div>';
 
-      const mealName = document.getElementById("mealInput").value;
-      const username = document.getElementById("usernameInput").value;
+        const mealName = document.getElementById("mealInput").value;
 
-      fetch("/api/nutritionix-meal/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrftoken
-        },
-        body: JSON.stringify({ meal: mealName })
-      })
-      .then(response => {
-        if (!response.ok) throw new Error("Błąd zapytania");
-        return response.json();
-      })
-      .then(data => {
-        const food = data.foods?.[0];
-        if (!food) {
-          document.getElementById("result").innerHTML = "<p>Nie znaleziono danych.</p>";
-          return;
-        }
-
-        const html = `
-          <h3>Znaleziono: ${food.food_name}</h3>
-          <p><strong>Kalorie:</strong> ${food.nf_calories}</p>
-          <p><strong>Białko:</strong> ${food.nf_protein} g</p>
-          <p><strong>Węglowodany:</strong> ${food.nf_total_carbohydrate} g</p>
-          <p><strong>Tłuszcz:</strong> ${food.nf_total_fat} g</p>
-          <p><strong>Porcja:</strong> ${food.serving_qty} ${food.serving_unit}</p>
-          <button id="addMealBtn">Dodaj ten posiłek</button>
-        `;
-        document.getElementById("result").innerHTML = html;
-
-        document.getElementById("addMealBtn").addEventListener("click", () => {
-          fetch("/api/add-meal/", {
+        fetch("/api/nutritionix-meal/", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": csrftoken
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrftoken
             },
-            body: JSON.stringify({ foods: [food], username: username })
-          })
-          .then(res => res.json())
-          .then(response => {
-            document.getElementById("result").innerHTML += "<p style='color:green;'>Posiłek dodany!</p>";
-          })
-          .catch(err => {
-            document.getElementById("result").innerHTML += "<p style='color:red;'>Błąd dodawania.</p>";
-          });
+            body: JSON.stringify({ meal: mealName })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("Błąd zapytania");
+            return response.json();
+        })
+        .then(data => {
+            const food = data.foods?.[0];
+            if (!food) {
+                resultDiv.innerHTML = '<div class="alert alert-warning">Nie znaleziono danych dla podanego posiłku.</div>';
+                return;
+            }
+
+            const html = `
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Znaleziono: ${food.food_name}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Kalorie:</strong> ${food.nf_calories} kcal</p>
+                                <p><strong>Białko:</strong> ${food.nf_protein} g</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Węglowodany:</strong> ${food.nf_total_carbohydrate} g</p>
+                                <p><strong>Tłuszcz:</strong> ${food.nf_total_fat} g</p>
+                            </div>
+                        </div>
+                        <p class="mb-3"><strong>Porcja:</strong> ${food.serving_qty} ${food.serving_unit}</p>
+                        <button id="addMealBtn" class="btn btn-success w-100">
+                            <i class="fas fa-plus-circle me-2"></i>Dodaj posiłek
+                        </button>
+                    </div>
+                </div>
+            `;
+            resultDiv.innerHTML = html;
+
+            document.getElementById("addMealBtn").addEventListener("click", () => {
+                const btn = document.getElementById("addMealBtn");
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Dodawanie...';
+                btn.disabled = true;
+
+                fetch("/api/add-meal/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrftoken
+                    },
+                    body: JSON.stringify({ foods: [food] })
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error("Błąd podczas dodawania");
+                    return res.json();
+                })
+                .then(response => {
+                    resultDiv.innerHTML += `
+                        <div class="alert alert-success mt-3">
+                            <i class="fas fa-check-circle me-2"></i>Posiłek został pomyślnie dodany!
+                        </div>
+                    `;
+                })
+                .catch(err => {
+                    resultDiv.innerHTML += `
+                        <div class="alert alert-danger mt-3">
+                            <i class="fas fa-exclamation-circle me-2"></i>Błąd podczas dodawania posiłku: ${err.message}
+                        </div>
+                    `;
+                })
+                .finally(() => {
+                    btn.innerHTML = '<i class="fas fa-plus-circle me-2"></i>Dodaj posiłek';
+                    btn.disabled = false;
+                });
+            });
+        })
+        .catch(error => {
+            console.error("Błąd:", error);
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Błąd pobierania danych: ${error.message}
+                </div>
+            `;
         });
-      })
-      .catch(error => {
-        console.error("Błąd:", error);
-        document.getElementById("result").innerHTML = "<p style='color:red;'>Błąd pobierania danych.</p>";
-      });
     });
-  </script>
-</body>
-</html>
+});
+</script>
+
+<style>
+    #result {
+        min-height: 100px;
+    }
+    .card {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}

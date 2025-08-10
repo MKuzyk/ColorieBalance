@@ -1,81 +1,130 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8" />
-    <title>Profil użytkownika</title>
-</head>
-<body>
-    <h1>Twój profil</h1>
+{% extends "base.html" %}
 
-    <div id="profile-info">
-        Ładowanie danych profilu...
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-circle me-2"></i>Twój profil</h4>
+            </div>
+            <div class="card-body">
+                <div id="profile-info" class="mb-4">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Ładowanie...</span>
+                        </div>
+                        <p class="mt-2">Ładowanie danych profilu...</p>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <a href="{% url 'edit-profile' %}" class="btn btn-primary">
+                        <i class="fas fa-user-edit me-2"></i>Edytuj profil
+                    </a>
+                    <button id="logout-btn" class="btn btn-outline-danger">
+                        <i class="fas fa-sign-out-alt me-2"></i>Wyloguj się
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <button id="edit-profile-btn">Edytuj profil</button>
-    <button id="logout-btn">Wyloguj się</button>
-
-    <script>
-        // Funkcja pobierająca ciasteczko
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Funkcja do pobierania ciasteczka CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
                 }
             }
-            return cookieValue;
+        }
+        return cookieValue;
+    }
+
+    // Pobierz dane profilu
+    fetch('/api/profile/', {
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (response.status === 401 || response.status === 403) {
+            window.location.href = '/accounts/login/?next=/profile/';
+            throw new Error('Nieautoryzowany dostęp');
+        }
+        if (!response.ok) throw new Error('Błąd ładowania profilu');
+        return response.json();
+    })
+    .then(data => {
+        const profileDiv = document.getElementById('profile-info');
+
+        // Formatowanie daty urodzenia
+        let birthDate = 'nie podano';
+        if (data.date_of_birth) {
+            const date = new Date(data.date_of_birth);
+            birthDate = date.toLocaleDateString('pl-PL');
         }
 
-        // Pobierz dane profilu
-        fetch('/api/profile/', {
+        profileDiv.innerHTML = `
+            <div class="list-group">
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-weight me-2 text-muted"></i>Waga</span>
+                    <span class="fw-bold">${data.weight ? data.weight + ' kg' : 'nie podano'}</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-ruler-vertical me-2 text-muted"></i>Wzrost</span>
+                    <span class="fw-bold">${data.height ? data.height + ' cm' : 'nie podano'}</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-birthday-cake me-2 text-muted"></i>Data urodzenia</span>
+                    <span class="fw-bold">${birthDate}</span>
+                </div>
+            </div>
+        `;
+    })
+    .catch(err => {
+        console.error(err);
+        document.getElementById('profile-info').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>Wystąpił błąd podczas ładowania profilu.
+            </div>
+        `;
+    });
+
+    // Obsługa wylogowania
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        fetch('/accounts/logout/', {
+            method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
             },
-            credentials: 'include'  // wysyłaj ciasteczka sesyjne
-        })
-        .then(response => {
-            if (response.status === 401 || response.status === 403) {
-                // Nie zalogowany, przekieruj do logowania
-                window.location.href = '/accounts/login/?next=/profile/';
-                throw new Error('Nieautoryzowany dostęp');
-            }
-            if (!response.ok) {
-                throw new Error('Błąd ładowania profilu');
-            }
-            return response.json();
-        })
-        .then(data => {
-            const profileDiv = document.getElementById('profile-info');
-            profileDiv.innerHTML = `
-                <p>Waga: ${data.weight ?? 'nie podano'}</p>
-                <p>Wzrost: ${data.height ?? 'nie podano'}</p>
-                <p>Data urodzenia: ${data.date_of_birth ?? 'nie podano'}</p>
-            `;
-        })
-        .catch(err => {
-            console.error(err);
+            credentials: 'include'
+        }).then(() => {
+            window.location.href = '/accounts/login/';
         });
+    });
+});
+</script>
 
-        document.getElementById('edit-profile-btn').addEventListener('click', () => {
-            window.location.href = '/edit-profile/';
-        });
-
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            fetch('/accounts/logout/', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken'),
-                },
-                credentials: 'include'
-            }).then(() => {
-                window.location.href = '/accounts/login/';
-            });
-        });
-    </script>
-</body>
-</html>
+<style>
+    .list-group-item {
+        padding: 1rem 1.25rem;
+        border-left: none;
+        border-right: none;
+    }
+    .list-group-item:first-child {
+        border-top: none;
+    }
+    .list-group-item:last-child {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}

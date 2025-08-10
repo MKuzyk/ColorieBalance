@@ -1,62 +1,113 @@
-<form id="activityForm">
-  <label for="activity">Aktywność:</label>
-  <input id="activity" name="activity" required>
+{% extends "base.html" %}
 
-  <label for="calories">Spalone kalorie:</label>
-  <input id="calories" name="calories_burned" type="number" step="0.1" required>
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-running me-2"></i>Dodaj aktywność</h4>
+            </div>
+            <div class="card-body">
+                <form id="activityForm">
+                    {% csrf_token %}
 
-  <button type="submit">Dodaj aktywność</button>
-</form>
+                    <div class="mb-3">
+                        <label for="activity" class="form-label">Nazwa aktywności:</label>
+                        <input type="text" class="form-control" id="activity" name="activity" required
+                               placeholder="np. Bieganie, Pływanie...">
+                    </div>
 
-<div id="result"></div>
+                    <div class="mb-3">
+                        <label for="calories" class="form-label">Spalone kalorie:</label>
+                        <input type="number" step="0.1" class="form-control" id="calories"
+                               name="calories_burned" required placeholder="np. 350.5">
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i>Dodaj aktywność
+                        </button>
+                    </div>
+                </form>
+
+                <div id="result" class="mt-3 alert" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
-// Funkcja do pobrania CSRF tokena z ciasteczek
-function getCookie(name) {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
+document.addEventListener("DOMContentLoaded", function() {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
-  }
-  return cookieValue;
-}
 
-document.getElementById("activityForm").addEventListener("submit", function(e) {
-  e.preventDefault();
+    document.getElementById("activityForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const resultDiv = document.getElementById("result");
+        resultDiv.style.display = "none";
 
-  const activity = document.getElementById("activity").value;
-  const calories = parseFloat(document.getElementById("calories").value);
+        const activity = document.getElementById("activity").value;
+        const calories = parseFloat(document.getElementById("calories").value);
 
-  fetch("/api/add-activity/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCookie('csrftoken')  // CSRF token
-    },
-    body: JSON.stringify({ activity, calories_burned: calories })
-  })
-  .then(res => {
-    if (res.status === 403 || res.status === 401) {
-      // Nie zalogowany → przekieruj do logowania
-      window.location.href = '/accounts/login/?next=/add-activity-form/';
-      throw new Error('Nieautoryzowany dostęp, zaloguj się');
-    }
-    if (!res.ok) throw new Error("Błąd: " + res.status);
-    return res.json();
-  })
-  .then(data => {
-    document.getElementById("result").innerText = "✅ Aktywność dodana: " + JSON.stringify(data);
-    // opcjonalnie wyczyść formularz
-    document.getElementById("activityForm").reset();
-  })
-  .catch(err => {
-    document.getElementById("result").innerText = "❌ Błąd: " + err.message;
-  });
+        fetch("/api/add-activity/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                activity: activity,
+                calories_burned: calories
+            })
+        })
+        .then(res => {
+            if (res.status === 403 || res.status === 401) {
+                window.location.href = '/accounts/login/?next=/add-activity-form/';
+                throw new Error('Nieautoryzowany dostęp, zaloguj się');
+            }
+            if (!res.ok) throw new Error("Błąd: " + res.status);
+            return res.json();
+        })
+        .then(data => {
+            resultDiv.innerHTML = `
+                <i class="fas fa-check-circle me-2"></i>
+                Pomyślnie dodano aktywność: <strong>${activity}</strong> (${calories} kcal)
+            `;
+            resultDiv.className = "mt-3 alert alert-success";
+            resultDiv.style.display = "block";
+            document.getElementById("activityForm").reset();
+        })
+        .catch(err => {
+            resultDiv.innerHTML = `
+                <i class="fas fa-exclamation-circle me-2"></i>
+                ${err.message}
+            `;
+            resultDiv.className = "mt-3 alert alert-danger";
+            resultDiv.style.display = "block";
+        });
+    });
 });
 </script>
+
+<style>
+    .card {
+        border-radius: 10px;
+    }
+    .form-control:focus {
+        border-color: #4e73df;
+        box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+    }
+</style>
+{% endblock %}

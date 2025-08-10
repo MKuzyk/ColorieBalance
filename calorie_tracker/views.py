@@ -1,5 +1,6 @@
 from datetime import date
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from rest_framework.permissions import IsAuthenticated
@@ -10,6 +11,7 @@ from calorie_tracker.models import Meal, Activity, UserProfile
 from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer, MealSerializer
 import requests
 from math import pow
+from .forms import ExtendedUserCreationForm
 
 # --- Widok logowania sesyjnego (HTML) ---
 def login_view(request):
@@ -102,17 +104,23 @@ class AddActivityAPIView(APIView):
         serializer = ActivitySerializer(activity)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+
 class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            return Response({"error": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
+
         serializer = UserProfileSerializer(profile)
         return Response(serializer.data)
 
     def put(self, request):
-        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        profile, created = UserProfile.objects.get_or_create(user=request.user)
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -142,9 +150,9 @@ class DailySummaryAPIView(APIView):
         ppm = None
         age = None
 
-        if profile and profile.weight_kg and profile.height_cm and profile.gender:
-            height_m = profile.height_cm / 100
-            bmi = profile.weight_kg / pow(height_m, 2)
+        if profile and profile.weight and profile.height and profile.gender:  # Używamy weight i height zamiast weight_kg i height_cm
+            height_m = profile.height / 100  # height jest w cm, dzielimy przez 100 aby uzyskać metry
+            bmi = profile.weight / pow(height_m, 2)  # weight jest w kg
 
             # BMI status
             if bmi < 18.5:
@@ -156,18 +164,15 @@ class DailySummaryAPIView(APIView):
             else:
                 bmi_status = 'Otyłość'
 
-            # Oblicz wiek jeśli jest birth_date
-            if hasattr(profile, 'birth_date') and profile.birth_date:
-                age = calculate_age(profile.birth_date)
-            else:
-                age = None  # albo możesz mieć pole age bezpośrednio
+            if profile.date_of_birth:
+                age = calculate_age(profile.date_of_birth)
 
             # Oblicz PPM wg płci
-            if age:
+            if age is not None:
                 if profile.gender.lower() == 'f':
-                    ppm = 655 + (9.6 * profile.weight_kg) + (1.8 * profile.height_cm) - (4.7 * age)
+                    ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)  # weight w kg, height w cm
                 elif profile.gender.lower() == 'm':
-                    ppm = 66 + (13.7 * profile.weight_kg) + (5 * profile.height_cm) - (6.8 * age)
+                    ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)  # weight w kg, height w cm
 
         calorie_status = "Nadwyżka kaloryczna" if balance > 0 else "Deficyt kaloryczny" if balance < 0 else "Bilans zerowy"
 
@@ -233,9 +238,9 @@ def daily_summary_view(request):
     balance = total_eaten - total_burned
 
     # Oblicz BMI
-    if profile and profile.weight and profile.height:
-        height_m = profile.height / 100  # cm -> m
-        bmi = profile.weight / (height_m ** 2)
+    if profile and profile.weight and profile.height:  # Używamy weight i height
+        height_m = profile.height / 100  # height jest w cm, konwertujemy na metry
+        bmi = profile.weight / (height_m ** 2)  # weight jest w kg
         bmi = round(bmi, 2)
     else:
         bmi = None
@@ -252,9 +257,9 @@ def daily_summary_view(request):
     ppm = None
     if profile and profile.weight and profile.height and age is not None and profile.gender:
         if profile.gender == 'F':
-            ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
+            ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)  # weight w kg, height w cm
         else:  # assuming 'M'
-            ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
+            ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)  # weight w kg, height w cm
         ppm = round(ppm, 2)
 
     # Oblicz deficyt/nadwyżkę względem PPM (jeśli ppm jest dostępne)
@@ -279,3 +284,32 @@ def daily_summary_view(request):
         'calorie_status': calorie_status,
     }
     return render(request, "daily_summary.html", context)
+
+
+def home_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'home.html')
+
+
+def register_view(request):
+    if request.method == 'POST':
+        form = ExtendedUserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+
+            # Użyj get_or_create zamiast create, aby uniknąć duplikatów
+            UserProfile.objects.get_or_create(
+                user=user,
+                defaults={
+                    'first_name': form.cleaned_data['first_name'],
+                    'last_name': form.cleaned_data['last_name'],
+                    'email': form.cleaned_data['email']
+                }
+            )
+
+            login(request, user)
+            return redirect('dashboard')
+    else:
+        form = ExtendedUserCreationForm()
+    return render(request, 'registration/register.html', {'form': form})
