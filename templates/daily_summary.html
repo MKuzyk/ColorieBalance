@@ -54,6 +54,14 @@
                             <h5>Spalone</h5>
                             <p class="display-6 text-danger">{{ total_burned|floatformat:"0" }} kcal</p>
                         </div>
+                        <div class="col-md-3">
+                            <h5>PPM</h5>
+                            {% if ppm %}
+                                <p class="display-6 text-info">{{ ppm|floatformat:"0" }} kcal</p>
+                            {% else %}
+                                <p class="display-6 text-muted">Brak danych</p>
+                            {% endif %}
+                        </div>
                         <div class="col-md-4">
                             <h5>Bilans</h5>
                             <p class="display-6 {% if balance > 0 %}text-warning{% else %}text-info{% endif %}">

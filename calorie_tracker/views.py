@@ -220,11 +220,21 @@ def calculate_age(birth_date):
     today = date.today()
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
+def calculate_ppm(profile):
+    if profile.date_of_birth and profile.weight and profile.height and profile.gender:
+        age = calculate_age(profile.date_of_birth)
+        if profile.gender == 'F':
+            return 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
+        else:
+            return 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
+    return None
+
 class DailySummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        selected_date = request.query_params.get('date')  # Pobierz datę z parametrów URL
+        # Pobranie daty z parametrów URL
+        selected_date = request.query_params.get('date')
         if selected_date:
             try:
                 summary_date = date.fromisoformat(selected_date)
@@ -235,47 +245,60 @@ class DailySummaryAPIView(APIView):
 
         user = request.user
 
+        # Posiłki i aktywności
         meals = Meal.objects.filter(user=user, date=summary_date)
         activities = Activity.objects.filter(user=user, date=summary_date)
 
+        # Sumy kalorii
         total_eaten = sum(meal.calories for meal in meals)
         total_burned = sum(activity.calories_burned for activity in activities)
 
+        # Przetworzone dane do frontendu
+        meals_data = [{"meal": m.meal, "calories": m.calories} for m in meals]
+        activities_data = [
+            {"activity_type": a.get_activity_type_display(),
+             "duration": a.duration,
+             "calories_burned": a.calories_burned}
+            for a in activities
+        ]
+
+        # Dane użytkownika
         profile = UserProfile.objects.filter(user=user).first()
         bmi = None
         bmi_status = None
         ppm = None
         age = None
 
-        if profile and profile.weight and profile.height and profile.gender:
-            height_m = profile.height / 100
-            bmi = profile.weight / pow(height_m, 2)
+        if profile:
+            age = calculate_age(profile.date_of_birth) if profile.date_of_birth else None
+            ppm = calculate_ppm(profile)
 
-            if bmi < 18.5:
-                bmi_status = 'Niedowaga'
-            elif 18.5 <= bmi < 25:
-                bmi_status = 'Waga prawidłowa'
-            elif 25 <= bmi < 30:
-                bmi_status = 'Nadwaga'
-            else:
-                bmi_status = 'Otyłość'
+            if profile.weight and profile.height:
+                height_m = profile.height / 100
+                bmi = profile.weight / pow(height_m, 2)
 
-            if profile.date_of_birth:
-                age = calculate_age(profile.date_of_birth)
+                if bmi < 18.5:
+                    bmi_status = 'Niedowaga'
+                elif 18.5 <= bmi < 25:
+                    bmi_status = 'Waga prawidłowa'
+                elif 25 <= bmi < 30:
+                    bmi_status = 'Nadwaga'
+                else:
+                    bmi_status = 'Otyłość'
 
-            if age is not None:
-                if profile.gender.lower() == 'f':
-                    ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
-                elif profile.gender.lower() == 'm':
-                    ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
+        # Bilans z uwzględnieniem PPM
+        if ppm is not None:
+            balance = total_eaten - (total_burned + ppm)
+        else:
+            balance = total_eaten - total_burned
 
-        # Bilans uwzględniający PPM
-        balance = total_eaten - (total_burned + (ppm or 0))
-
-        calorie_status = "Nadwyżka kaloryczna" if balance > 0 else "Deficyt kaloryczny" if balance < 0 else "Bilans zerowy"
-
-        meals_data = [{"meal": m.meal, "calories": m.calories, "date": m.date} for m in meals]
-        activities_data = [{"activity": a.get_activity_type_display(), "calories_burned": a.calories_burned} for a in activities]
+        # Status kaloryczny (opcjonalny)
+        if balance > 0:
+            calorie_status = "Nadwyżka"
+        elif balance < 0:
+            calorie_status = "Deficyt"
+        else:
+            calorie_status = "Zero"
 
         return Response({
             "date": summary_date,
@@ -381,16 +404,6 @@ def add_meal_dynamic(request):
 def dashboard_view(request):
     return render(request, 'dashboard.html')
 
-def calculate_ppm(profile):
-    if profile.date_of_birth and profile.weight and profile.height and profile.gender:
-        age = calculate_age(profile.date_of_birth)
-        if profile.gender == 'F':
-            return 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
-        else:
-            return 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
-    return None
-
-
 def daily_summary_view(request):
     user = request.user
     profile = getattr(user, 'userprofile', None)
@@ -464,9 +477,6 @@ def register_view(request):
     else:
         form = ExtendedUserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
-
-
-from datetime import date, timedelta
 
 
 class WeeklySummaryAPIView(APIView):
