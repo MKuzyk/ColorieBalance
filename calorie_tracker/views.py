@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.db.models.aggregates import Sum, Count
@@ -11,7 +11,7 @@ from calorie_tracker.models import Meal, Activity, UserProfile
 from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer, MealSerializer
 import requests
 from math import pow
-from .forms import ExtendedUserCreationForm, ActivityForm, UserProfileForm
+from .forms import ExtendedUserCreationForm, ActivityForm, UserProfileForm, MealForm
 
 
 # --- Widok logowania sesyjnego (HTML) ---
@@ -56,18 +56,31 @@ class NutritionixMealAPIView(APIView):
         except requests.exceptions.RequestException as e:
             return Response({"error": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+
 class AddMealAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         foods = request.data.get("foods", [])
+        meal_date_str = request.data.get("date")
+
         if not foods:
             return Response({"error": "No foods data provided"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Dokładne parsowanie daty z walidacją
+        try:
+            meal_date = datetime.strptime(meal_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Invalid date format. Use YYYY-MM-DD"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         user = request.user
+        created_meals = []
 
         for food in foods:
-            Meal.objects.create(
+            meal = Meal(
                 user=user,
                 meal=food.get("food_name", ""),
                 calories=food.get("nf_calories", 0),
@@ -76,10 +89,18 @@ class AddMealAPIView(APIView):
                 fat=food.get("nf_total_fat", 0),
                 serving_qty=food.get("serving_qty", 0),
                 serving_unit=food.get("serving_unit", ""),
-                raw_api_data=food
+                raw_api_data=food,
+                date=meal_date  # Zawsze używamy przekazanej daty
             )
+            meal.full_clean()  # Walidacja modelu przed zapisem
+            meal.save()
+            created_meals.append(meal)
 
-        return Response({"status": "Meals added successfully"}, status=status.HTTP_201_CREATED)
+        return Response({
+            "status": f"Added {len(created_meals)} meals",
+            "date": meal_date.isoformat(),
+            "meals": MealSerializer(created_meals, many=True).data
+        }, status=status.HTTP_201_CREATED)
 
 
 class AddActivityAPIView(APIView):
@@ -203,15 +224,22 @@ class DailySummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        today = date.today()
+        selected_date = request.query_params.get('date')  # Pobierz datę z parametrów URL
+        if selected_date:
+            try:
+                summary_date = date.fromisoformat(selected_date)
+            except (ValueError, TypeError):
+                summary_date = date.today()
+        else:
+            summary_date = date.today()
+
         user = request.user
 
-        meals = Meal.objects.filter(user=user, date=today)
-        activities = Activity.objects.filter(user=user, date=today)
+        meals = Meal.objects.filter(user=user, date=summary_date)
+        activities = Activity.objects.filter(user=user, date=summary_date)
 
         total_eaten = sum(meal.calories for meal in meals)
         total_burned = sum(activity.calories_burned for activity in activities)
-        balance = total_eaten - total_burned
 
         profile = UserProfile.objects.filter(user=user).first()
         bmi = None
@@ -219,11 +247,10 @@ class DailySummaryAPIView(APIView):
         ppm = None
         age = None
 
-        if profile and profile.weight and profile.height and profile.gender:  # Używamy weight i height zamiast weight_kg i height_cm
-            height_m = profile.height / 100  # height jest w cm, dzielimy przez 100 aby uzyskać metry
-            bmi = profile.weight / pow(height_m, 2)  # weight jest w kg
+        if profile and profile.weight and profile.height and profile.gender:
+            height_m = profile.height / 100
+            bmi = profile.weight / pow(height_m, 2)
 
-            # BMI status
             if bmi < 18.5:
                 bmi_status = 'Niedowaga'
             elif 18.5 <= bmi < 25:
@@ -236,26 +263,29 @@ class DailySummaryAPIView(APIView):
             if profile.date_of_birth:
                 age = calculate_age(profile.date_of_birth)
 
-            # Oblicz PPM wg płci
             if age is not None:
                 if profile.gender.lower() == 'f':
-                    ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)  # weight w kg, height w cm
+                    ppm = 655 + (9.6 * profile.weight) + (1.8 * profile.height) - (4.7 * age)
                 elif profile.gender.lower() == 'm':
-                    ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)  # weight w kg, height w cm
+                    ppm = 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
+
+        # Bilans uwzględniający PPM
+        balance = total_eaten - (total_burned + (ppm or 0))
 
         calorie_status = "Nadwyżka kaloryczna" if balance > 0 else "Deficyt kaloryczny" if balance < 0 else "Bilans zerowy"
 
-        meals_data = [{"meal": m.meal, "calories": m.calories} for m in meals]
-        activities_data = [{"activity": a.activity, "calories_burned": a.calories_burned} for a in activities]
+        meals_data = [{"meal": m.meal, "calories": m.calories, "date": m.date} for m in meals]
+        activities_data = [{"activity": a.get_activity_type_display(), "calories_burned": a.calories_burned} for a in activities]
 
         return Response({
+            "date": summary_date,
             "total_eaten": total_eaten,
             "total_burned": total_burned,
+            "ppm": round(ppm, 2) if ppm else None,
             "balance": balance,
             "calorie_status": calorie_status,
             "bmi": round(bmi, 2) if bmi else None,
             "bmi_status": bmi_status,
-            "ppm": round(ppm, 2) if ppm else None,
             "age": age,
             "meals": meals_data,
             "activities": activities_data
@@ -265,10 +295,21 @@ class MealsTodayAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        today = date.today()
-        meals = Meal.objects.filter(user=request.user, date=today)
+        selected_date = request.query_params.get('date')
+        if selected_date:
+            try:
+                meal_date = date.fromisoformat(selected_date)
+            except (ValueError, TypeError):
+                meal_date = date.today()
+        else:
+            meal_date = date.today()
+
+        meals = Meal.objects.filter(user=request.user, date=meal_date)
         serializer = MealSerializer(meals, many=True)
-        return Response(serializer.data)
+        return Response({
+            "date": meal_date,
+            "meals": serializer.data
+        })
 
 @login_required
 def profile_view(request):
@@ -322,7 +363,19 @@ def add_activity_form(request):
 
 @login_required
 def add_meal_dynamic(request):
-    return render(request, "add_meal_dynamic.html")
+    if request.method == 'POST':
+        form = MealForm(request.POST)
+        if form.is_valid():
+            meal = form.save(commit=False)
+            meal.user = request.user
+            if 'date' in request.POST:  # Jeśli data jest przekazana w formularzu
+                meal.date = request.POST['date']
+            meal.save()
+            return redirect('daily-summary-html')
+    else:
+        form = MealForm(initial={'date': date.today()})  # Domyślna data
+
+    return render(request, "add_meal_dynamic.html", {'form': form})
 
 @login_required
 def dashboard_view(request):
@@ -337,17 +390,28 @@ def calculate_ppm(profile):
             return 66 + (13.7 * profile.weight) + (5 * profile.height) - (6.8 * age)
     return None
 
-@login_required
+
 def daily_summary_view(request):
     user = request.user
     profile = getattr(user, 'userprofile', None)
-    today = date.today()
 
-    meals = Meal.objects.filter(user=user, date=today).order_by('-id')
-    activities = Activity.objects.filter(user=user, date=today).order_by('-id')
+    # Pobierz datę z parametru GET lub użyj dzisiejszej
+    selected_date_str = request.GET.get('date')
+    if selected_date_str:
+        try:
+            selected_date = date.fromisoformat(selected_date_str)
+        except (ValueError, TypeError):
+            selected_date = date.today()
+    else:
+        selected_date = date.today()
+
+    # Pobierz dane dla wybranej daty
+    meals = Meal.objects.filter(user=user, date=selected_date).order_by('-id')
+    activities = Activity.objects.filter(user=user, date=selected_date).order_by('-id')
 
     total_eaten = sum(meal.calories for meal in meals)
     total_burned = sum(activity.calories_burned for activity in activities)
+    total_activity_duration = sum(activity.duration for activity in activities)
     balance = total_eaten - total_burned
 
     bmi = None
@@ -358,13 +422,18 @@ def daily_summary_view(request):
     ppm = calculate_ppm(profile) if profile else None
 
     context = {
-        'total_eaten': round(total_eaten, 2),
-        'total_burned': round(total_burned, 2),
-        'balance': round(balance, 2),
+        'today': date.today(),
+        'yesterday': date.today() - timedelta(days=1),
+        'week_ago': date.today() - timedelta(days=7),
+        'selected_date': selected_date,
+        'total_eaten': total_eaten,
+        'total_burned': total_burned,
+        'total_activity_duration': total_activity_duration,
+        'balance': balance,
         'meals': meals,
         'activities': activities,
-        'bmi': round(bmi, 2) if bmi else None,
-        'ppm': round(ppm, 2) if ppm else None,
+        'bmi': bmi,
+        'ppm': ppm,
     }
     return render(request, "daily_summary.html", context)
 
@@ -407,6 +476,11 @@ class WeeklySummaryAPIView(APIView):
         user = request.user
         end_date = date.today()
         start_date = end_date - timedelta(days=6)  # Ostatnie 7 dni (włącznie z dzisiaj)
+        try:
+            profile = UserProfile.objects.get(user=user)
+            ppm_value = calculate_ppm(profile) or 0
+        except UserProfile.DoesNotExist:
+            ppm_value = 0
 
         weekly_data = []
 
@@ -414,9 +488,11 @@ class WeeklySummaryAPIView(APIView):
             meals = Meal.objects.filter(user=user, date=single_date)
             activities = Activity.objects.filter(user=user, date=single_date)
 
-            total_eaten = sum(meal.calories for meal in meals)
-            total_burned = sum(activity.calories_burned for activity in activities)
-            balance = total_eaten - total_burned
+            total_eaten = round(sum(meal.calories for meal in meals),0)
+            total_burned = round(sum(activity.calories_burned for activity in activities),0)
+            ppm_rounded = round(ppm_value, 0)
+            balance = round(total_eaten - total_burned - ppm_rounded, 0)
+
 
             calorie_status = "Nadwyżka" if balance > 0 else "Deficyt" if balance < 0 else "Zerowy"
 
@@ -424,6 +500,7 @@ class WeeklySummaryAPIView(APIView):
                 'date': single_date,
                 'total_eaten': total_eaten,
                 'total_burned': total_burned,
+                'ppm': ppm_rounded,  # <-- dodajemy PPM tutaj
                 'balance': balance,
                 'calorie_status': calorie_status,
                 'meals': [{'meal': m.meal, 'calories': m.calories} for m in meals],

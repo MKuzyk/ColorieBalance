@@ -12,11 +12,14 @@ class Meal(models.Model):
     fat = models.FloatField(default=0)
     serving_qty = models.FloatField(default=0)
     serving_unit = models.CharField(max_length=50, blank=True)
-    date = models.DateField(auto_now_add=True)
+    date = models.DateField()
     raw_api_data = models.JSONField(null=True, blank=True)
 
+    class Meta:
+        ordering = ['-date', '-id']  # Domyślne sortowanie
+
     def __str__(self):
-        return f"{self.meal} - {self.calories} kcal"
+        return f"{self.meal} ({self.date}): {self.calories} kcal"
 
 
 class Activity(models.Model):
@@ -25,6 +28,9 @@ class Activity(models.Model):
         ('SWIM', 'Pływanie'),
         ('CYCLE', 'Jazda na rowerze'),
         ('GYM', 'Siłownia'),
+        ('WALKING', 'Spacer'),
+        ('Hiking', 'Chodzenie po górach'),
+        ('Climbing', 'Wspinaczka'),
         ('OTHER', 'Inne')
     ]
 

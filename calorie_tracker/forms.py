@@ -2,7 +2,7 @@ from datetime import date
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import UserProfile
+from .models import UserProfile, Meal
 from .models import Activity
 
 class ExtendedUserCreationForm(UserCreationForm):
@@ -58,4 +58,15 @@ class ActivityForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['date'].initial = date.today()  # Domyślna wartość to dzisiejsza data
+
+
+class MealForm(forms.ModelForm):
+    date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        initial=date.today()
+    )
+
+    class Meta:
+        model = Meal
+        fields = ['meal', 'calories', 'protein', 'carbs', 'fat', 'date']
 

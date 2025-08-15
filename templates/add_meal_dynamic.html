@@ -1,27 +1,66 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-8">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="fas fa-utensils me-2"></i>Dodaj posiłek</h4>
-            </div>
-            <div class="card-body">
-                <form id="searchForm" class="mb-4">
-                    <div class="mb-3">
-                        <label for="mealInput" class="form-label">Wpisz nazwę posiłku:</label>
-                        <input type="text" class="form-control" id="mealInput" name="meal" required
-                               placeholder="np. kanapka z serem, kurczak z ryżem...">
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-search me-2"></i>Szukaj w Nutritionix
-                        </button>
-                    </div>
-                </form>
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-utensils me-2"></i>Dodaj posiłek</h4>
+                </div>
+                <div class="card-body">
 
-                <div id="result" class="mt-4"></div>
+                    <!-- Formularz wyszukiwania posiłku -->
+                    <form id="searchForm" class="mb-4">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label for="mealInput" class="form-label">Wpisz nazwę posiłku:</label>
+                                <input type="text" class="form-control" id="mealInput" name="meal" required
+                                       placeholder="np. kanapka z serem, kurczak z ryżem...">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="mealDate" class="form-label">Data posiłku:</label>
+                                <input type="date" class="form-control" id="mealDate" name="date" required>
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>Szukaj w Nutritionix
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Wyniki wyszukiwania -->
+                    <div id="searchResult" class="mb-4"></div>
+
+                    <!-- Formularz dodawania ręcznego -->
+                    <div class="card mb-3 d-none" id="manualFormCard">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">Dodaj ręcznie</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="manualForm">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label for="manualMealName" class="form-label">Nazwa posiłku</label>
+                                    <input type="text" class="form-control" id="manualMealName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="manualCalories" class="form-label">Kalorie</label>
+                                    <input type="number" class="form-control" id="manualCalories" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="manualDate" class="form-label">Data posiłku</label>
+                                    <input type="date" class="form-control" id="manualDate" required>
+                                </div>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus-circle me-2"></i>Dodaj ręcznie
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
             </div>
         </div>
     </div>
@@ -29,35 +68,22 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    const csrftoken = getCookie('csrftoken');
-
+    // Obsługa wyszukiwania
     document.getElementById("searchForm").addEventListener("submit", function(e) {
         e.preventDefault();
-        const resultDiv = document.getElementById("result");
-        resultDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Ładowanie...</span></div></div>';
+        searchMeal();
+    });
 
+    function searchMeal() {
         const mealName = document.getElementById("mealInput").value;
+        const resultDiv = document.getElementById("searchResult");
+        resultDiv.innerHTML = '<div class="text-center my-4"><div class="spinner-border text-primary"></div><p>Wyszukuję posiłek...</p></div>';
 
         fetch("/api/nutritionix-meal/", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "X-CSRFToken": csrftoken
+                "X-CSRFToken": getCookie("csrftoken")
             },
             body: JSON.stringify({ meal: mealName })
         })
@@ -66,93 +92,154 @@ document.addEventListener("DOMContentLoaded", function() {
             return response.json();
         })
         .then(data => {
-            const food = data.foods?.[0];
-            if (!food) {
-                resultDiv.innerHTML = '<div class="alert alert-warning">Nie znaleziono danych dla podanego posiłku.</div>';
-                return;
-            }
-
-            const html = `
-                <div class="card mb-3">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0">Znaleziono: ${food.food_name}</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Kalorie:</strong> ${food.nf_calories} kcal</p>
-                                <p><strong>Białko:</strong> ${food.nf_protein} g</p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Węglowodany:</strong> ${food.nf_total_carbohydrate} g</p>
-                                <p><strong>Tłuszcz:</strong> ${food.nf_total_fat} g</p>
-                            </div>
-                        </div>
-                        <p class="mb-3"><strong>Porcja:</strong> ${food.serving_qty} ${food.serving_unit}</p>
-                        <button id="addMealBtn" class="btn btn-success w-100">
-                            <i class="fas fa-plus-circle me-2"></i>Dodaj posiłek
-                        </button>
-                    </div>
-                </div>
-            `;
-            resultDiv.innerHTML = html;
-
-            document.getElementById("addMealBtn").addEventListener("click", () => {
-                const btn = document.getElementById("addMealBtn");
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Dodawanie...';
-                btn.disabled = true;
-
-                fetch("/api/add-meal/", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": csrftoken
-                    },
-                    body: JSON.stringify({ foods: [food] })
-                })
-                .then(res => {
-                    if (!res.ok) throw new Error("Błąd podczas dodawania");
-                    return res.json();
-                })
-                .then(response => {
-                    resultDiv.innerHTML += `
-                        <div class="alert alert-success mt-3">
-                            <i class="fas fa-check-circle me-2"></i>Posiłek został pomyślnie dodany!
-                        </div>
-                    `;
-                })
-                .catch(err => {
-                    resultDiv.innerHTML += `
-                        <div class="alert alert-danger mt-3">
-                            <i class="fas fa-exclamation-circle me-2"></i>Błąd podczas dodawania posiłku: ${err.message}
-                        </div>
-                    `;
-                })
-                .finally(() => {
-                    btn.innerHTML = '<i class="fas fa-plus-circle me-2"></i>Dodaj posiłek';
-                    btn.disabled = false;
-                });
-            });
+            displayResults(data);
         })
         .catch(error => {
-            console.error("Błąd:", error);
             resultDiv.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Błąd pobierania danych: ${error.message}
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${error.message || "Błąd podczas wyszukiwania"}
+                </div>
+                <button class="btn btn-outline-primary mt-2" onclick="showManualForm()">
+                    <i class="fas fa-pencil-alt me-2"></i>Dodaj ręcznie
+                </button>
+            `;
+        });
+    }
+
+    function displayResults(data) {
+        const resultDiv = document.getElementById("searchResult");
+        const food = data.foods?.[0];
+
+        if (!food) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>Nie znaleziono posiłku
+                </div>
+                <button class="btn btn-outline-primary mt-2" onclick="showManualForm()">
+                    <i class="fas fa-pencil-alt me-2"></i>Dodaj ręcznie
+                </button>
+            `;
+            return;
+        }
+
+        resultDiv.innerHTML = `
+            <div class="card mb-3" data-food='${JSON.stringify(food)}'>
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Wynik: ${food.food_name}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Kalorie:</strong> ${food.nf_calories} kcal</p>
+                    <p><strong>Białko:</strong> ${food.nf_protein} g</p>
+                    <p><strong>Węglowodany:</strong> ${food.nf_total_carbohydrate} g</p>
+                    <p><strong>Tłuszcz:</strong> ${food.nf_total_fat} g</p>
+                    <p><strong>Porcja:</strong> ${food.serving_qty} ${food.serving_unit}</p>
+                    <button class="btn btn-success w-100" onclick="addMeal()">
+                        <i class="fas fa-plus-circle me-2"></i>Dodaj posiłek
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    window.addMeal = function() {
+        const resultDiv = document.getElementById("searchResult");
+        const dateValue = document.getElementById("mealDate").value;
+
+        if (!dateValue) {
+            alert("Wybierz datę posiłku!");
+            return;
+        }
+
+        const food = JSON.parse(resultDiv.querySelector(".card").dataset.food);
+
+        fetch("/api/add-meal/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({
+                foods: [food],
+                date: dateValue
+            })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("Błąd podczas dodawania");
+            return response.json();
+        })
+        .then(data => {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Posiłek dodany na ${data.date}!
                 </div>
             `;
+            document.getElementById("mealInput").value = "";
+        })
+        .catch(error => {
+            alert(error.message || "Błąd podczas dodawania");
+        });
+    };
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(";").shift();
+    }
+
+    window.showManualForm = function() {
+        document.getElementById("manualFormCard").classList.remove("d-none");
+    };
+
+    // Formularz ręczny
+    document.getElementById("manualForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+
+        const mealData = {
+            foods: [{
+                food_name: document.getElementById("manualMealName").value,
+                nf_calories: parseFloat(document.getElementById("manualCalories").value),
+                nf_protein: 0,
+                nf_total_carbohydrate: 0,
+                nf_total_fat: 0,
+                serving_qty: 1,
+                serving_unit: "portion"
+            }],
+            date: document.getElementById("manualDate").value
+        };
+
+        if (!mealData.date) {
+            alert("Wybierz datę posiłku!");
+            return;
+        }
+
+        fetch("/api/add-meal/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify(mealData)
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("Błąd podczas dodawania");
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById("searchResult").innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Posiłek dodany na ${data.date}!
+                </div>
+            `;
+            this.reset();
+            this.closest(".card").classList.add("d-none");
+        })
+        .catch(error => {
+            alert(error.message || "Błąd podczas dodawania");
         });
     });
 });
 </script>
-
-<style>
-    #result {
-        min-height: 100px;
-    }
-    .card {
-        border: none;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-</style>
 {% endblock %}

@@ -24,12 +24,12 @@ class ActivitySerializer(serializers.ModelSerializer):
 
 
 class MealSerializer(serializers.ModelSerializer):
+    date = serializers.DateField(format='%Y-%m-%d', input_formats=['%Y-%m-%d'])
+
     class Meta:
         model = Meal
         fields = '__all__'
-        extra_kwargs = {
-            'user': {'read_only': True}
-        }
+        read_only_fields = ('user',)
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
