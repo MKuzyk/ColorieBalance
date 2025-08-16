@@ -33,8 +33,8 @@
                     <!-- Wyniki wyszukiwania -->
                     <div id="searchResult" class="mb-4"></div>
 
-                    <!-- Formularz dodawania ręcznego -->
-                    <div class="card mb-3 d-none" id="manualFormCard">
+                    <!-- Formularz dodawania ręcznego (zawsze widoczny) -->
+                    <div class="card mb-3" id="manualFormCard">
                         <div class="card-header bg-secondary text-white">
                             <h5 class="mb-0">Dodaj ręcznie</h5>
                         </div>
@@ -68,7 +68,6 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Obsługa wyszukiwania
     document.getElementById("searchForm").addEventListener("submit", function(e) {
         e.preventDefault();
         searchMeal();
@@ -100,9 +99,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     ${error.message || "Błąd podczas wyszukiwania"}
                 </div>
-                <button class="btn btn-outline-primary mt-2" onclick="showManualForm()">
-                    <i class="fas fa-pencil-alt me-2"></i>Dodaj ręcznie
-                </button>
             `;
         });
     }
@@ -116,9 +112,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 <div class="alert alert-warning">
                     <i class="fas fa-info-circle me-2"></i>Nie znaleziono posiłku
                 </div>
-                <button class="btn btn-outline-primary mt-2" onclick="showManualForm()">
-                    <i class="fas fa-pencil-alt me-2"></i>Dodaj ręcznie
-                </button>
             `;
             return;
         }
@@ -188,10 +181,6 @@ document.addEventListener("DOMContentLoaded", function() {
         if (parts.length === 2) return parts.pop().split(";").shift();
     }
 
-    window.showManualForm = function() {
-        document.getElementById("manualFormCard").classList.remove("d-none");
-    };
-
     // Formularz ręczny
     document.getElementById("manualForm").addEventListener("submit", function(e) {
         e.preventDefault();
@@ -234,7 +223,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 </div>
             `;
             this.reset();
-            this.closest(".card").classList.add("d-none");
         })
         .catch(error => {
             alert(error.message || "Błąd podczas dodawania");
