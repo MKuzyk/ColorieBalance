@@ -21,7 +21,7 @@ Funkcje dodatkowe planowane w przyszłości:
 - Zaawansowane statystyki i wykresy
 - Powiadomienia o przekroczeniu kalorii
 - Integracja z innymi aplikacjami fitness (Garmin itd.)
-- Pobieranie spalania kalori aktywnych z open API
+- Pobieranie wartości spalonych kalori z aktywności z zewnętrznengo API
 
 ## API
 Aplikacja została przystosowana do komunikacji przez REST API. 
