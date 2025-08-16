@@ -8,6 +8,16 @@
                 <h4 class="mb-0">Rejestracja</h4>
             </div>
             <div class="card-body">
+
+                <!-- Wyświetlanie komunikatów -->
+                {% if messages %}
+                  {% for message in messages %}
+                    <div class="alert alert-info">
+                      {{ message }}
+                    </div>
+                  {% endfor %}
+                {% endif %}
+
                 <form method="post">
                     {% csrf_token %}
 

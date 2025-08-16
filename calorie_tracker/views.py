@@ -10,7 +10,7 @@ from rest_framework import status
 from calorie_tracker.models import Meal, Activity, UserProfile
 from calorie_tracker.serializers import ActivitySerializer, UserProfileSerializer, MealSerializer
 import requests
-from math import pow
+from django.contrib import messages
 from .forms import ExtendedUserCreationForm, ActivityForm, UserProfileForm, MealForm
 
 
@@ -335,7 +335,8 @@ class WeeklySummaryAPIView(APIView):
     def get(self, request):
         user = request.user
         end_date = date.today()
-        start_date = end_date - timedelta(days=6)  # Ostatnie 7 dni (włącznie z dzisiaj)
+        start_date = end_date - timedelta(days=6)  # ostatnie 7 dni
+
         try:
             profile = UserProfile.objects.get(user=user)
             ppm_value = calculate_ppm(profile) or 0
@@ -343,36 +344,50 @@ class WeeklySummaryAPIView(APIView):
             ppm_value = 0
 
         weekly_data = []
+        total_week_eaten = 0
+        total_week_burned = 0
+        total_week_ppm = 0
 
         for single_date in (start_date + timedelta(n) for n in range(7)):
             meals = Meal.objects.filter(user=user, date=single_date)
             activities = Activity.objects.filter(user=user, date=single_date)
 
-            total_eaten = round(sum(meal.calories for meal in meals),0)
-            total_burned = round(sum(activity.calories_burned for activity in activities),0)
+            total_eaten = round(sum(meal.calories for meal in meals), 0)
+            total_burned = round(sum(activity.calories_burned for activity in activities), 0)
             balance = round(total_eaten - total_burned - ppm_value, 0)
 
-
-            calorie_status = "Nadwyżka" if balance > 0 else "Deficyt" if balance < 0 else "Zerowy"
+            status = "Nadwyżka" if balance > 0 else "Deficyt" if balance < 0 else "Zerowy"
 
             weekly_data.append({
                 'date': single_date,
                 'total_eaten': total_eaten,
                 'total_burned': total_burned,
-                'ppm': round(ppm_value, 0) if ppm_value else None,
-                'balance': round(balance,0) if balance else None,
-                'calorie_status': calorie_status,
-                'meals': [{'meal': m.meal, 'calories': m.calories} for m in meals],
-                'activities': [{
-                    'name': a.get_activity_type_display(),  # Używamy get_..._display()
-                    'type': a.activity_type,
-                    'duration': a.duration,
-                    'calories_burned': a.calories_burned,
-                    'notes': a.notes
-                } for a in activities]
+                'ppm': round(ppm_value, 0),
+                'balance': round(balance, 0),
+                'status': status,
+                'meals': [f"{m.meal} ({m.calories} kcal)" for m in meals],
+                'activities': [
+                    f"{a.get_activity_type_display()} - {a.duration} min, {a.calories_burned} kcal"
+                    for a in activities
+                ]
             })
 
-        return Response(weekly_data)
+            # Agregacja tygodniowa
+            total_week_eaten += total_eaten
+            total_week_burned += total_burned
+            total_week_ppm += ppm_value
+
+        weekly_summary = {
+            'total_eaten': round(total_week_eaten,0),
+            'total_burned': round(total_week_burned,0),
+            'total_ppm': round(total_week_ppm,0),
+            'balance': round(total_week_eaten - total_week_burned - total_week_ppm,0)
+        }
+
+        return Response({
+            'weekly_summary': weekly_summary,
+            'daily_data': weekly_data
+        })
 
 
 #----------------------------------------- Widoki funkcyjne (szablony) ----------------------------------------------
@@ -395,7 +410,43 @@ def login_view(request):
 
 @login_required
 def dashboard_view(request):
-    return render(request, 'dashboard.html')
+    profile = request.user.userprofile
+
+    age = calculate_age(profile.date_of_birth) if profile.date_of_birth else None
+    ppm = calculate_ppm(profile)
+    bmi = calculate_bmi(profile.weight, profile.height / 100) if profile.weight and profile.height else None
+
+    # Dane tygodniowe
+    today = date.today()
+    week_ago = today - timedelta(days=6)
+
+    meals = Meal.objects.filter(user=request.user, date__range=[week_ago, today])
+    activities = Activity.objects.filter(user=request.user, date__range=[week_ago, today])
+
+    total_eaten = meals.aggregate(total=Sum('calories'))['total'] or 0
+    total_burned = activities.aggregate(total=Sum('calories_burned'))['total'] or 0
+
+    avg_ppm = ppm  # lub jeśli chcesz średnią z kilku dni, można ją liczyć osobno
+    balance = total_eaten - total_burned - avg_ppm
+
+    context = {
+        'age': age,
+        'height': profile.height,
+        'weight': profile.weight,
+        'bmi': round(bmi, 1) if bmi else None,
+        'ppm': round(ppm) if ppm else None,
+        # agregaty tygodniowe
+        'weekly_aggregates': {
+            'total_eaten': round(total_eaten),
+            'total_burned': round(total_burned),
+            'avg_ppm': round(avg_ppm) if avg_ppm else 0,
+            'balance': round(balance),
+        },
+        'weekly_meals': meals,
+        'weekly_activities': activities,
+    }
+
+    return render(request, 'dashboard.html', context)
 
 def home_view(request):
     if request.user.is_authenticated:
@@ -453,7 +504,10 @@ def register_view(request):
             )
 
             login(request, user)
-            return redirect('dashboard')
+
+            messages.info(request, "Uzupełnij wszystkie dane w profilu, aby zostały obliczone BMI i PPM")
+
+            return redirect('user-profile')
     else:
         form = ExtendedUserCreationForm()
     return render(request, 'registration/register.html', {'form': form})

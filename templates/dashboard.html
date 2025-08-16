@@ -2,43 +2,79 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">Podsumowanie tygodnia</h2>
-
-<!-- Statystyki główne (dzisiejsze) -->
-<div class="row mb-4" id="today-stats">
-    <div class="col-md-3">
-        <div class="card text-white bg-primary mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Dzisiejsze spożycie</h5>
-                <p class="card-text display-6" id="today-eaten">Ładowanie...</p>
+    <!-- Sekcja danych użytkownika -->
+<h2 class="mb-4">Twoje dane</h2>
+<div class="row mb-4" id="user-stats">
+    <div class="col d-flex">
+        <div class="card text-white bg-secondary flex-fill mx-1">
+            <div class="card-body text-center py-3">
+                <h6 class="card-title">Wiek</h6>
+                <p class="card-text display-6">{{ age }}</p>
             </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-warning mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Dzisiejsze spalanie</h5>
-                <p class="card-text display-6" id="today-burned">Ładowanie...</p>
+        <div class="card text-white bg-secondary flex-fill mx-1">
+            <div class="card-body text-center py-3">
+                <h6 class="card-title">Wzrost (cm)</h6>
+                <p class="card-text display-6">{{ height }}</p>
             </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info mb-3">
-            <div class="card-body">
-                <h5 class="card-title">PPM (kcal)</h5>
-                <p class="card-text display-6" id="today-ppm">Ładowanie...</p>
+        <div class="card text-white bg-secondary flex-fill mx-1">
+            <div class="card-body text-center py-3">
+                <h6 class="card-title">Waga (kg)</h6>
+                <p class="card-text display-6">{{ weight }}</p>
             </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white mb-3" id="today-balance-card">
-            <div class="card-body">
-                <h5 class="card-title">Bilans</h5>
-                <p class="card-text display-6" id="today-balance">Ładowanie...</p>
+        <div class="card text-white bg-secondary flex-fill mx-1">
+            <div class="card-body text-center py-3">
+                <h6 class="card-title">BMI</h6>
+                <p class="card-text display-6">{{ bmi }}</p>
+            </div>
+        </div>
+        <div class="card text-white bg-secondary flex-fill mx-1">
+            <div class="card-body text-center py-3">
+                <h6 class="card-title">PPM (kcal)</h6>
+                <p class="card-text display-6">{{ ppm }}</p>
             </div>
         </div>
     </div>
 </div>
+
+    <!-- Podsumowanie tygodnia -->
+    <h2 class="mb-4">Podsumowanie tygodnia</h2>
+    <div class="row mb-4" id="today-stats">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Tygodniowe spożycie</h5>
+                    <p class="card-text display-6" id="today-eaten">Ładowanie...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Tygodniowe spalanie</h5>
+                    <p class="card-text display-6" id="today-burned">Ładowanie...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Tygodniowe PPM (kcal)</h5>
+                    <p class="card-text display-6" id="today-ppm">Ładowanie...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white mb-3" id="today-balance-card">
+                <div class="card-body">
+                    <h5 class="card-title">Bilans tygodnia</h5>
+                    <p class="card-text display-6" id="today-balance">Ładowanie...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Tabela podsumowania tygodniowego -->
     <div class="card mb-4">
@@ -65,7 +101,7 @@
                     </thead>
                     <tbody id="weekly-data">
                         <tr>
-                            <td colspan="7" class="text-center py-4">
+                            <td colspan="8" class="text-center py-4">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Ładowanie...</span>
                                 </div>
@@ -88,17 +124,13 @@
             </div>
             <div class="modal-body">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-6" id="meals-col">
                         <h6><i class="bi bi-egg-fried"></i> Posiłki</h6>
-                        <ul class="list-group" id="modal-meals">
-                            <!-- Wypełniane przez JS -->
-                        </ul>
+                        <ul class="list-group" id="modal-meals"></ul>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-6" id="activities-col">
                         <h6><i class="bi bi-bicycle"></i> Aktywności</h6>
-                        <ul class="list-group" id="modal-activities">
-                            <!-- Wypełniane przez JS -->
-                        </ul>
+                        <ul class="list-group" id="modal-activities"></ul>
                     </div>
                 </div>
             </div>
@@ -118,15 +150,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function loadWeeklyData() {
         const weeklyDataEl = document.getElementById('weekly-data');
-        weeklyDataEl.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Ładowanie...</span>
-                    </div>
-                </td>
-            </tr>
-        `;
+        weeklyDataEl.innerHTML = `<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Ładowanie...</span></div></td></tr>`;
 
         fetch('/api/weekly-summary/')
             .then(response => {
@@ -134,142 +158,78 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(data => {
-                if (data.length === 0) {
-                    weeklyDataEl.innerHTML = `
-                        <tr>
-                            <td colspan="7" class="text-center py-4 text-muted">
-                                Brak danych do wyświetlenia
-                            </td>
-                        </tr>
-                    `;
+                const summary = data.weekly_summary;
+                const dailyData = data.daily_data;
+
+                // Aktualizacja kart tygodniowych
+                document.getElementById('today-eaten').textContent = `${summary.total_eaten} kcal`;
+                document.getElementById('today-burned').textContent = `${summary.total_burned} kcal`;
+                document.getElementById('today-ppm').textContent = `${summary.total_ppm} kcal`;
+
+                const balanceEl = document.getElementById('today-balance');
+                balanceEl.textContent = `${summary.balance} kcal`;
+
+                const card = document.getElementById('today-balance-card');
+                card.className = summary.balance > 0 ? 'card text-white bg-danger mb-3' :
+                    summary.balance < 0 ? 'card text-white bg-success mb-3' :
+                    'card text-white bg-secondary mb-3';
+
+                if (!dailyData || dailyData.length === 0) {
+                    weeklyDataEl.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">Brak danych do wyświetlenia</td></tr>`;
                     return;
                 }
 
-
-                const todayData = data.find(d => new Date(d.date).toDateString() === new Date().toDateString());
-                if (todayData) {
-                    document.getElementById('today-eaten').textContent = `${todayData.total_eaten} kcal`;
-                    document.getElementById('today-burned').textContent = `${todayData.total_burned} kcal`;
-                    document.getElementById('today-ppm').textContent = `${todayData.ppm} kcal`;
-                    const balanceEl = document.getElementById('today-balance');
-                    balanceEl.textContent = `${todayData.balance} kcal`;
-                    const card = document.getElementById('today-balance-card');
-                    card.className = todayData.balance > 0 ? 'card text-white bg-danger mb-3' :
-                        todayData.balance < 0 ? 'card text-white bg-success mb-3' :
-                            'card text-white bg-secondary mb-3';
-                }
-
+                // Tabela z ostatnich 7 dni
                 let html = '';
-                data.forEach(day => {
+                dailyData.forEach(day => {
                     const date = new Date(day.date);
                     const isToday = date.toDateString() === new Date().toDateString();
                     const balanceClass = day.balance > 0 ? 'text-danger' : day.balance < 0 ? 'text-success' : '';
                     const statusBadge = day.balance > 0 ? 'bg-danger' : day.balance < 0 ? 'bg-success' : 'bg-secondary';
 
-                    html += `
-                        <tr class="${isToday ? 'table-primary' : ''}">
-                            <td>
-                                <strong>${formatDate(day.date)}</strong> ${isToday ? '<span class="badge bg-info ms-2">Dziś</span>' : ''}
-                            </td>
-                            <td>${day.total_eaten}</td>
-                            <td>${day.total_burned}</td>
-                            <td>${day.ppm}</td>
-                            <td class="${balanceClass} fw-bold">${day.balance}</td>
-                            <td><span class="badge ${statusBadge}">${day.calorie_status}</span></td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-info show-details" data-date="${day.date}" data-type="meals">
-                                    ${day.meals.length} <i class="bi bi-egg-fried"></i>
-                                </button>
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-warning show-details" data-date="${day.date}" data-type="activities">
-                                    ${day.activities.length} <i class="bi bi-bicycle"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `;
+                    html += `<tr class="${isToday ? 'table-primary' : ''}">
+                        <td><strong>${formatDate(day.date)}</strong> ${isToday ? '<span class="badge bg-info ms-2">Dziś</span>' : ''}</td>
+                        <td>${day.total_eaten}</td>
+                        <td>${day.total_burned}</td>
+                        <td>${day.ppm}</td>
+                        <td class="${balanceClass}">${day.balance}</td>
+                        <td><span class="badge ${statusBadge}">${day.calorie_status}</span></td>
+                        <td><button class="btn btn-sm btn-outline-primary" data-type="meals" data-meals='${JSON.stringify(day.meals)}' data-bs-toggle="modal" data-bs-target="#dayDetailsModal">Szczegóły</button></td>
+                        <td><button class="btn btn-sm btn-outline-secondary" data-type="activities" data-activities='${JSON.stringify(day.activities)}' data-bs-toggle="modal" data-bs-target="#dayDetailsModal">Szczegóły</button></td>
+                    </tr>`;
                 });
                 weeklyDataEl.innerHTML = html;
-
-                document.querySelectorAll('.show-details').forEach(btn => {
-                    btn.addEventListener('click', function () {
-                        const date = this.getAttribute('data-date');
-                        const type = this.getAttribute('data-type');
-                        showDayDetails(date, type, data);
-                    });
-                });
             })
             .catch(error => {
-                console.error('Error:', error);
-                weeklyDataEl.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-danger">
-                            Wystąpił błąd podczas ładowania danych
-                        </td>
-                    </tr>
-                `;
+                weeklyDataEl.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Błąd ładowania danych: ${error.message}</td></tr>`;
             });
     }
 
-    function showDayDetails(date, type, allData) {
-        const dayData = allData.find(d => d.date === date);
-        if (!dayData) return;
+    loadWeeklyData();
+    document.getElementById('refresh-data').addEventListener('click', loadWeeklyData);
 
-        const modalTitle = document.getElementById('modalTitle');
-        modalTitle.textContent = `Szczegóły dnia: ${formatDate(date)}`;
-
+    const modal = document.getElementById('dayDetailsModal');
+    modal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
         const mealsList = document.getElementById('modal-meals');
         const activitiesList = document.getElementById('modal-activities');
+        const mealsCol = document.getElementById('meals-col');
+        const activitiesCol = document.getElementById('activities-col');
 
-        mealsList.innerHTML = dayData.meals.map(meal => `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>${meal.meal}</strong>
-                    <small class="text-muted d-block">${new Date(date).toLocaleDateString()}</small>
-                </div>
-                <span class="badge bg-primary rounded-pill">${meal.calories} kcal</span>
-            </li>
-        `).join('') || '<li class="list-group-item text-muted">Brak posiłków</li>';
+        mealsList.innerHTML = '';
+        activitiesList.innerHTML = '';
 
-        activitiesList.innerHTML = dayData.activities.map(activity => `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>${activity.name || 'Inna aktywność'}</strong>
-                    <small class="text-muted d-block">
-                        ${activity.duration} min | ${activity.notes || 'Brak notatki'}
-                    </small>
-                </div>
-                <span class="badge bg-warning rounded-pill">${activity.calories_burned} kcal</span>
-            </li>
-        `).join('') || '<li class="list-group-item text-muted">Brak aktywności</li>';
-
-        const modal = new bootstrap.Modal(document.getElementById('dayDetailsModal'));
-        modal.show();
-    }
-
-    loadWeeklyData();
-
-    document.getElementById('refresh-data').addEventListener('click', loadWeeklyData);
+        if (button.dataset.type === 'meals' && button.dataset.meals) {
+            JSON.parse(button.dataset.meals).forEach(m => mealsList.innerHTML += `<li class="list-group-item">${m}</li>`);
+            mealsCol.style.display = 'block';
+            activitiesCol.style.display = 'none';
+        }
+        else if (button.dataset.type === 'activities' && button.dataset.activities) {
+            JSON.parse(button.dataset.activities).forEach(a => activitiesList.innerHTML += `<li class="list-group-item">${a}</li>`);
+            mealsCol.style.display = 'none';
+            activitiesCol.style.display = 'block';
+        }
+    });
 });
 </script>
-
-<style>
-.card .display-6 {
-    font-size: 1.75rem;
-    font-weight: 500;
-}
-
-.table-hover tbody tr:hover {
-    cursor: pointer;
-    background-color: rgba(0, 0, 0, 0.03);
-}
-
-.badge.bg-primary {
-    background-color: #0d6efd !important;
-}
-
-.badge.bg-warning {
-    color: #000;
-}
-</style>
 {% endblock %}

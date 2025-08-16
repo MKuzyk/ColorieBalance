@@ -37,44 +37,48 @@
         </div>
     </div>
 
+    {% with formatted_date=selected_date|date:"j E Y" %}
     <!-- Podstawowe informacje -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card shadow">
                 <div class="card-header bg-info text-white">
-                    <h4><i class="fas fa-chart-line me-2"></i>Podstawowe informacje - {{ selected_date|date:"j E Y" }}</h4>
+                    <h4><i class="fas fa-chart-line me-2"></i>Podstawowe informacje - {{ formatted_date }}</h4>
                 </div>
                 <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-2">
+                    <div class="d-flex justify-content-between text-center flex-wrap">
+                        <div class="info-box">
                             <h5>Wiek</h5>
                             <p class="display-6">{{ age|default:"-" }} lat</p>
                         </div>
-                        <div class="col-md-2">
+                        <div class="info-box">
                             <h5>Wzrost</h5>
                             <p class="display-6">{{ height|default:"-" }} cm</p>
                         </div>
-                        <div class="col-md-2">
+                        <div class="info-box">
                             <h5>Waga</h5>
                             <p class="display-6">{{ weight|default:"-" }} kg</p>
                         </div>
-                        <div class="col-md-3">
+                        <div class="info-box">
                             <h5>BMI</h5>
                             <p class="display-6">
-                                {{ bmi|default:"-" }}
                                 {% if bmi %}
-                                    <span class="badge
-                                        {% if bmi < 18.5 %}bg-info">Niedowaga
-                                        {% elif bmi < 25 %}bg-success">Prawidłowe
-                                        {% elif bmi < 30 %}bg-warning text-dark">Nadwaga
-                                        {% else %}bg-danger">Otyłość
-                                        {% endif %}</span>
+                                    {{ bmi|floatformat:"1" }}
+                                    {% if bmi < 18.5 %}
+                                        <span class="badge bg-info">Niedowaga</span>
+                                    {% elif bmi < 25 %}
+                                        <span class="badge bg-success">Prawidłowe</span>
+                                    {% elif bmi < 30 %}
+                                        <span class="badge bg-warning text-dark">Nadwaga</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Otyłość</span>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-muted">Brak danych</span>
                                 {% endif %}
                             </p>
                         </div>
-                        <div class="col-md-3">
+                        <div class="info-box">
                             <h5>PPM</h5>
                             <p class="display-6">{{ ppm|default:"-" }} kcal</p>
                         </div>
@@ -89,19 +93,19 @@
         <div class="col-md-12">
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
-                    <h4><i class="fas fa-fire me-2"></i>Bilans kaloryczny - {{ selected_date|date:"j E Y" }}</h4>
+                    <h4><i class="fas fa-fire me-2"></i>Bilans kaloryczny - {{ formatted_date }}</h4>
                 </div>
                 <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-3">
-                            <h5>Zjedzone</h5>
+                    <div class="d-flex justify-content-between text-center flex-wrap">
+                        <div class="info-box">
+                            <h5>Dzienne spożycie</h5>
                             <p class="display-6 text-success">{{ total_eaten|floatformat:"0" }} kcal</p>
                         </div>
-                        <div class="col-md-3">
-                            <h5>Spalone</h5>
+                        <div class="info-box">
+                            <h5>Dzienne spalone</h5>
                             <p class="display-6 text-danger">{{ total_burned|floatformat:"0" }} kcal</p>
                         </div>
-                        <div class="col-md-3">
+                        <div class="info-box">
                             <h5>PPM</h5>
                             {% if ppm %}
                                 <p class="display-6 text-info">{{ ppm|floatformat:"0" }} kcal</p>
@@ -109,8 +113,8 @@
                                 <p class="display-6 text-muted">Brak danych</p>
                             {% endif %}
                         </div>
-                        <div class="col-md-3">
-                            <h5>Bilans</h5>
+                        <div class="info-box">
+                            <h5>Bilans dzienny</h5>
                             <p class="display-6 {% if balance > 0 %}text-warning{% else %}text-info{% endif %}">
                                 {{ balance|floatformat:"0" }} kcal
                             </p>
@@ -127,14 +131,14 @@
             <div class="card shadow">
                 <div class="card-header bg-success text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0"><i class="fas fa-utensils me-2"></i>Posiłki ({{ selected_date|date:"j E Y" }})</h4>
+                        <h4 class="mb-0"><i class="fas fa-utensils me-2"></i>Posiłki ({{ formatted_date }})</h4>
                         <span class="badge bg-light text-dark">{{ meals.count }}</span>
                     </div>
                 </div>
                 <div class="card-body">
                     {% if meals %}
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="table text-nowrap">
                             <thead>
                                 <tr>
                                     <th>Nazwa</th>
@@ -170,14 +174,14 @@
             <div class="card shadow">
                 <div class="card-header bg-warning text-dark">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0"><i class="fas fa-running me-2"></i>Aktywności ({{ selected_date|date:"j E Y" }})</h4>
+                        <h4 class="mb-0"><i class="fas fa-running me-2"></i>Aktywności ({{ formatted_date }})</h4>
                         <span class="badge bg-light text-dark">{{ activities.count }}</span>
                     </div>
                 </div>
                 <div class="card-body">
                     {% if activities %}
                     <div class="table-responsive">
-                        <table class="table">
+                        <table class="table text-nowrap">
                             <thead>
                                 <tr>
                                     <th>Aktywność</th>
@@ -212,6 +216,7 @@
             </div>
         </div>
     </div>
+    {% endwith %}
 </div>
 
 <style>
@@ -236,15 +241,22 @@
         background-color: #4e73df;
         color: white;
     }
+    .info-box {
+        flex: 1;
+        min-width: 120px;
+        margin: 5px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const datePicker = document.getElementById('datePicker');
-    if (!datePicker.value) {
-        const today = new Date().toISOString().split('T')[0];
-        datePicker.value = today;
-    }
+    const today = new Date().toISOString().split('T')[0];
+    datePicker.max = today;
+    if (!datePicker.value) datePicker.value = today;
 });
 </script>
 {% endblock %}
