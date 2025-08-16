@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <td>${day.total_burned}</td>
                         <td>${day.ppm}</td>
                         <td class="${balanceClass}">${day.balance}</td>
-                        <td><span class="badge ${statusBadge}">${day.calorie_status}</span></td>
+                        <td><span class="badge ${statusBadge}">${day.status}</span></td>
                         <td><button class="btn btn-sm btn-outline-primary" data-type="meals" data-meals='${JSON.stringify(day.meals)}' data-bs-toggle="modal" data-bs-target="#dayDetailsModal">Szczegóły</button></td>
                         <td><button class="btn btn-sm btn-outline-secondary" data-type="activities" data-activities='${JSON.stringify(day.activities)}' data-bs-toggle="modal" data-bs-target="#dayDetailsModal">Szczegóły</button></td>
                     </tr>`;

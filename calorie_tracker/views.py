@@ -426,7 +426,7 @@ def dashboard_view(request):
     total_eaten = meals.aggregate(total=Sum('calories'))['total'] or 0
     total_burned = activities.aggregate(total=Sum('calories_burned'))['total'] or 0
 
-    avg_ppm = ppm  # lub jeśli chcesz średnią z kilku dni, można ją liczyć osobno
+    avg_ppm = ppm
     balance = total_eaten - total_burned - avg_ppm
 
     context = {
