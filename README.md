@@ -1,4 +1,4 @@
-# Moja Aplikacja do śledznia diety i aktywności fizycznej
+# Moja Aplikacja do śledzenia bilansu kalorycznego "CalorieBalance"
 
 ## Cel aplikacji
 Aplikacja pozwala użytkownikom śledzić swoje posiłki, aktywności i bilans kalorii, a także monitorować postępy tygodniowe.
