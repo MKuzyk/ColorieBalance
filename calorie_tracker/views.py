@@ -147,7 +147,7 @@ class AddActivityAPIView(APIView):
             )
 
     def get_weekly_summary(self, user):
-        """Pomocnicza metoda do pobierania podsumowania tygodnia"""
+
         today = date.today()
         week_ago = today - timedelta(days=7)
 

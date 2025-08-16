@@ -38,9 +38,9 @@ class Activity(models.Model):
     activity_type = models.CharField(
         max_length=20,
         choices=ACTIVITY_CHOICES,
-        default='OTHER'  # Dodajemy domyślną wartość
+        default='OTHER'
     )
-    duration = models.PositiveIntegerField(default=30)  # w minutach
+    duration = models.PositiveIntegerField(default=30)
     calories_burned = models.PositiveIntegerField()
     date = models.DateField()
     notes = models.TextField(blank=True)

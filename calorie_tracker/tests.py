@@ -18,7 +18,7 @@ class ModelTests(TestCase):
         )
 
     def test_profile_age(self):
-        self.assertGreater(self.profile.age, 25)  # Zakładając, że test jest wykonywany po 2015 roku
+        self.assertGreater(self.profile.age, 25)
 
     def test_profile_bmi(self):
         self.assertAlmostEqual(self.profile.calculate_bmi(), 22.86, places=2)
